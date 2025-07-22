@@ -144,7 +144,7 @@ class Character {
     if (keys.left)  this.x -= 6;
     if (keys.right) this.x += 6;
     if (keys.up && this.onGround) {
-      this.vy = -8;
+      this.vy = -12;
       this.onGround = false;
     }
     this.x = Math.max(0, Math.min(W - this.width, this.x));
