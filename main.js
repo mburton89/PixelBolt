@@ -9,7 +9,7 @@ const messageEl = document.getElementById('message');
 
 // Persistence and spawn controls
 const DECAY            = 0.82;
-const BOLT_CHANCE      = 0.03;
+const BOLT_CHANCE      = 0.05;
 const BOLT_SPEED       = 25;
 const MAX_ACTIVE_BOLTS = 25;
 
@@ -200,10 +200,15 @@ class LightningDisplay {
       const cx = Math.floor(Math.random() * W), cy = Math.floor(H/5);
       this.clouds.push(new Cloud(cx, cy));
     }
+    const PLATFORM_W = 32;
     const levels = [0.25, 0.5, 0.75];
     levels.forEach(frac => {
       const y = Math.floor(H * frac);
-      const x = Math.floor(Math.random() * (W - 3));
+      // define left/right bounds
+      const minX = Math.floor(0.15 * W);
+      const maxX = Math.floor(0.85 * W) - PLATFORM_W;
+      // pick inside that band
+      const x = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
       this.platforms.push(new Platform(x, y));
     });
   }
@@ -244,39 +249,62 @@ class LightningDisplay {
 // ------- Character -------
 class Character {
   constructor() {
-    this.x = W/2; this.y = H-1; this.vy = 0; this.onGround = true; this.w = 3; this.h = 3;
+    this.x = W/2;
+    this.y = H-1;
+    this.vy = 0;
+    this.onGround = false;   // start in the air so first landing bounces
+    this.w = 3; this.h = 3;
   }
+
   handleInput() {
-    if (keys.left)  this.x -= 8;
-    if (keys.right) this.x += 8;
-    if (keys.up && this.onGround) { this.vy = -14; this.onGround = false; }
+    if (keys.left)  this.x -= 7;
+    if (keys.right) this.x += 7;
     this.x = Math.max(0, Math.min(W - this.w, this.x));
   }
+
   update(display) {
     const prevY = this.y;
-    if (!this.onGround) this.vy += 1.0;
-    this.y += this.vy;
+
+    // gravity
+    this.vy += 1.0;
+    this.y  += this.vy;
     this.onGround = false;
+
+    // floor collision
     if (this.y >= H - this.h) {
       this.y = H - this.h;
       this.vy = 0;
       this.onGround = true;
     }
+
+    // platform collisions (unchanged)...
     display.platforms.forEach(p => {
-      if (this.vy > 0 && this.x + this.w > p.x && this.x < p.x + p.w && prevY + this.h <= p.y && this.y + this.h >= p.y) {
+      if (this.vy > 0
+         && this.x + this.w > p.x && this.x < p.x + p.w
+         && prevY + this.h <= p.y && this.y + this.h >= p.y
+      ) {
         this.y = p.y - this.h;
         this.vy = 0;
         this.onGround = true;
       }
     });
+
+    // *** New: automatic bounce whenever onGround ***
+    if (this.onGround) {
+      this.vy = -13.1;      // jump strength
+      this.onGround = false;
+      // start the timer on first bounce
+      if (!startTime) startTime = performance.now();
+    }
   }
+
   draw() {
-    for (let dx = 0; dx < this.w; dx++) {
+    for (let dx = 0; dx < this.w; dx++)
       for (let dy = 0; dy < this.h; dy++) {
-        const px = Math.floor(this.x + dx), py = Math.floor(this.y + dy);
+        const px = Math.floor(this.x + dx),
+              py = Math.floor(this.y + dy);
         buffer[py * W + px] = 1;
       }
-    }
   }
 }
 

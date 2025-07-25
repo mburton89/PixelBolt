@@ -7,36 +7,40 @@
   <!-- Pixel font -->
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
-    body {
+    html, body {
       margin: 0;
+      width: 100vw;
       height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      overflow: hidden;
       background: #111;
       color: #eee;
       font-family: 'Press Start 2P', cursive;
     }
     #container {
       position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     canvas {
       image-rendering: pixelated;
       border: 2px solid #444;
-      width: 480px;
-      height: 480px;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
       display: block;
-      margin: 0 auto;
     }
     #ui {
       position: absolute;
-      top: 8px;
-      left: 8px;
+      top: 1em;
+      left: 1em;
       background: rgba(0,0,0,0.6);
-      padding: 6px 10px;
+      padding: 0.5em 1em;
       border-radius: 4px;
       line-height: 1.4;
-      font-size: 12px;
+      font-size: calc(0.5vw + 0.75em);
     }
     #message {
       position: absolute;
@@ -44,11 +48,17 @@
       left: 50%;
       transform: translate(-50%, -50%);
       background: rgba(0,0,0,0.8);
-      padding: 16px;
+      padding: 2em 3em;
       border: 2px solid #eee;
-      border-radius: 6px;
-      font-size: 16px;
+      border-radius: 8px;
+      font-size: calc(1vw + 1.5em);
       display: none;
+      text-align: center;
+      max-width: 80%;
+      box-sizing: border-box;
+    }
+    #message p {
+      margin: 0.5em 0;
     }
   </style>
 </head>
@@ -60,11 +70,11 @@
       <div>TIME: <span id="timer">0.00</span>s</div>
     </div>
     <div id="message">
-      <p>YOU WIN!</p>
+      <p>YOU WIN!</p>
       <p>Refresh</p>
       <p>¯\_(ツ)_/¯</p>
     </div>
-    <canvas id="display" width="240" height="240"></canvas>
+    <canvas id="display" width="320" height="180"></canvas>
   </div>
   <script src="main.js"></script>
 </body>
