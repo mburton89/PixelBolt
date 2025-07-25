@@ -1,4 +1,4 @@
-// main.js: Infinite Lightning Platformer with Fractal Lightning & Conditional Floor Lighting
+// main.js: Infinite Lightning Platformer with Fractal Lightning & Score Display
 
 // Grab canvas and UI
 document.title = "Lightning Platformer";
@@ -6,11 +6,12 @@ const canvas = document.getElementById("display");
 const ctx = canvas.getContext("2d");
 const W = canvas.width;
 const H = canvas.height;
-const scoreEl = document.getElementById("timer");
+const scoreEl = document.getElementById("timer"); // repurposed to show score
+const messageEl = document.getElementById("message"); // game over message
 
 // Lightning parameters
 const DECAY = 0.82;
-const BOLT_CHANCE = 0.07; // increased spawn probability
+const BOLT_CHANCE = 0.07;
 const BOLT_SPEED = 25;
 const MAX_ACTIVE_BOLTS = 25;
 const BOLT_BRANCH_BASE = 0.02;
@@ -25,9 +26,10 @@ const KINK_CHANCE = 0.1;
 const buffer = new Float32Array(W * H);
 let activeBolts = [];
 
-// Score and room state
+// Game state
 let score = 0;
-let firstRoom = true; // only in first room draw permanent floor
+let firstRoom = true;
+let running = true;
 
 // Input state
 const keys = { left: false, right: false };
@@ -40,11 +42,11 @@ window.addEventListener("keyup", e => {
   if (e.code === "ArrowRight") keys.right = false;
 });
 
-// Frame rate control
+// Frame rate
 let lastTime = 0;
 const FRAME_INT = 1000 / 30;
 
-// Utility function
+// Utility
 function rand(n) {
   return Math.floor(Math.random() * n);
 }
@@ -54,11 +56,8 @@ class Bolt {
   constructor({ x = rand(W), y = 0, depth = 0,
                 segLen = SEG_MIN_LEN + rand(SEG_MAX_LEN - SEG_MIN_LEN),
                 dx = [-1, 0, 1][rand(3)] } = {}) {
-    this.x = x;
-    this.y = y;
-    this.depth = depth;
-    this.segLen = segLen;
-    this.dx = dx;
+    this.x = x; this.y = y; this.depth = depth;
+    this.segLen = segLen; this.dx = dx;
   }
   step() {
     if (Math.random() < KINK_CHANCE) {
@@ -81,71 +80,85 @@ class Platform {
     this.y = y;
     this.w = w;
     this.h = h;
+    this.scored = false; // track scoring
   }
+
   lightAt(bx, by) {
     if (by >= this.y - this.h + 1 && by <= this.y && bx >= this.x && bx < this.x + this.w) {
       for (let dx = 0; dx < this.w; dx++) {
         for (let dy = 0; dy < this.h; dy++) {
           const px = this.x + dx;
           const py = this.y - dy;
-          if (px >= 0 && px < W && py >= 0 && py < H) {
-            buffer[py * W + px] = 1;
-          }
+          if (px >= 0 && px < W && py >= 0 && py < H) buffer[py * W + px] = 1;
         }
       }
     }
   }
+
   collides(player) {
     return player.vy > 0 &&
-           player.x + player.w > this.x && player.x < this.x + this.w &&
-           player.prevY + player.h <= this.y && player.y + player.h >= this.y;
+      player.x + player.w > this.x && player.x < this.x + this.w &&
+      player.prevY + player.h <= this.y && player.y + player.h >= this.y;
   }
 }
-
+// ----- Lightning Display -----
 // ----- Lightning Display -----
 class LightningDisplay {
   constructor(ctx) {
     this.ctx = ctx;
-    // permanent floor platform for collision
-    this.floor = new Platform(0, H - 1, W, 1);
-    this.platforms = [this.floor];
-    this.resetPlatforms();
+    // Initialize platforms for the first room
+    this.resetPlatforms(H - 1, null);
   }
+
   resetPlatforms(baseY = H - 1, playerX = null) {
-    // retain floor at bottom
-    this.platforms = [this.floor];
-    const levels = [1.0, 0.6, 0.3];
-    levels.forEach(f => {
+    this.platforms = [];
+    const minWidth = 6;
+    const startWidth = 32;
+    let prevWidth = startWidth;
+
+    // Bottom platform
+    let pw = firstRoom ? W : prevWidth;         // width: full screen first room, else prevWidth
+    let ph = firstRoom ? 1 : 6;                 // height: 1px first room, else 6px
+    let x;
+    if (firstRoom) {
+      x = 0;
+    } else if (playerX != null) {
+      // align center of platform with center of player (player width ~3px)
+      const centerX = playerX + 1.5;
+      x = Math.round(centerX - pw / 2);
+      x = Math.max(0, Math.min(W - pw, x));
+    } else {
+      x = Math.floor((W - pw) / 2);
+    }
+    const bottom = new Platform(x, baseY, pw, ph);
+    if (firstRoom) bottom.scored = true;
+    this.platforms.push(bottom);
+    // ensure dynamic platforms start at 32px, not floor width
+    prevWidth = firstRoom ? 32 : pw;
+
+    // Two platforms above at 60% and 30%
+    [0.6, 0.3].forEach(f => {
       const y = Math.floor(baseY * f);
-      let pw = 32, ph = 6, x;
-      if (f === 1.0) {
-        if (baseY === H - 1) {
-          // initial floor full-width
-          pw = W; ph = 1; x = 0;
-        } else {
-          // place bottom platform under player
-          pw = 32; ph = 6;
-          const px = (playerX !== null) ? Math.floor(playerX) : Math.floor(W/2);
-          // clamp so platform stays in bounds
-          x = Math.max(0, Math.min(W - pw, px));
-        }
-      } else {
-        // upper platforms
-        const minX = Math.floor(0.25 * W);
-        const maxX = Math.floor(0.75 * W) - pw;
-        x = rand(maxX - minX + 1) + minX;
-      }
-      this.platforms.push(new Platform(x, y, pw, ph));
+      const w2 = Math.max(prevWidth - 1, minWidth);
+      const h2 = 6;
+      const minX = Math.floor(0.25 * W);
+      const maxX = Math.floor(0.75 * W) - w2;
+      const x2 = rand(maxX - minX + 1) + minX;
+      this.platforms.push(new Platform(x2, y, w2, h2));
+      prevWidth = w2;
     });
   }
+
   fade() {
     for (let i = 0; i < buffer.length; i++) buffer[i] *= DECAY;
   }
+
   spawnBolts() {
     if (activeBolts.length < MAX_ACTIVE_BOLTS && Math.random() < BOLT_CHANCE) {
       activeBolts.push(new Bolt());
     }
   }
+
   updateBolts() {
     for (let i = activeBolts.length - 1; i >= 0; i--) {
       const b = activeBolts[i];
@@ -163,12 +176,10 @@ class LightningDisplay {
       if (b.y >= H) activeBolts.splice(i, 1);
     }
   }
+
   render() {
-    // only draw permanent floor in first room
     if (firstRoom) {
-      for (let x = 0; x < W; x++) {
-        buffer[(H - 1) * W + x] = 1;
-      }
+      for (let x = 0; x < W; x++) buffer[(H - 1) * W + x] = 1;
     }
     const img = this.ctx.createImageData(W, H);
     for (let i = 0; i < buffer.length; i++) {
@@ -184,19 +195,14 @@ class LightningDisplay {
 
 // ----- Character Class -----
 class Character {
-  constructor() {
-    this.w = 3; this.h = 3;
-    this.x = W / 2; this.y = 0; this.prevY = 0; this.vy = 0;
-  }
-  handleInput() {
-    if (keys.left) this.x -= 4;
-    if (keys.right) this.x += 4;
-    this.x = Math.max(0, Math.min(W - this.w, this.x));
-  }
+  constructor() { this.w=3;this.h=3;this.x=W/2;this.y=0;this.prevY=0;this.vy=0; }
+  handleInput() { if(keys.left)this.x-=4; if(keys.right)this.x+=4; this.x=Math.max(0,Math.min(W-this.w,this.x)); }
   update(display) {
     this.prevY = this.y;
     this.vy += 1;
     this.y += this.vy;
+
+    // Check landing on platforms
     let landed = null;
     display.platforms.forEach(p => {
       if (p.collides(this)) {
@@ -205,11 +211,19 @@ class Character {
         this.vy = -13.6;
       }
     });
+
+    // Score on new platform
+    if (landed && !landed.scored) {
+      landed.scored = true;
+      score++;
+      scoreEl.textContent = `${score}`;
+    }
+
+    // Camera shift when reaching topmost platform
     if (landed) {
-      score++; scoreEl.textContent = score;
       const topY = Math.min(...display.platforms.map(p => p.y));
       if (landed.y === topY) {
-        firstRoom = false; // no longer first room
+        firstRoom = false;
         const shift = H - landed.y - landed.h;
         display.platforms.forEach(p => p.y += shift);
         this.y += shift;
@@ -218,29 +232,28 @@ class Character {
         display.resetPlatforms(landed.y, this.x);
       }
     }
-  }
-  draw() {
-    for (let dx = 0; dx < this.w; dx++) {
-      for (let dy = 0; dy < this.h; dy++) {
-        const px = (this.x + dx) | 0;
-        const py = (this.y + dy) | 0;
-        if (px >= 0 && px < W && py >= 0 && py < H) {
-          buffer[py * W + px] = 1;
-        }
-      }
+
+    // Lose condition if falling off after first room
+    if (!firstRoom && this.y >= H) {
+      messageEl.innerHTML = `Game Over<br>Score: ${score}`;
+      messageEl.style.display = "block";
+      running = false;
     }
   }
+  draw() { for(let dx=0;dx<this.w;dx++)for(let dy=0;dy<this.h;dy++){ const px=(this.x+dx)|0,py=(this.y+dy)|0;
+      if(px>=0&&px<W&&py>=0&&py<H) buffer[py*W+px]=1; }}
 }
 
-// ----- Initialization & Loop -----
-const display = new LightningDisplay(ctx);
-const player = new Character();
-player.y = display.platforms[0].y - player.h;
-scoreEl.textContent = score;
+// ----- Init & Loop -----
+const display=new LightningDisplay(ctx);
+const player=new Character();
+player.y=display.platforms[0].y-player.h;
+messageEl.style.display="none";
+scoreEl.textContent = `0`;
 
-function loop(time) {
-  if (time - lastTime < FRAME_INT) return requestAnimationFrame(loop);
-  lastTime = time;
+function loop(time){ if(!running) return;
+  if(time-lastTime<FRAME_INT) return requestAnimationFrame(loop);
+  lastTime=time;
   display.fade(); display.spawnBolts(); display.updateBolts();
   player.handleInput(); player.update(display); player.draw();
   display.render(); requestAnimationFrame(loop);
