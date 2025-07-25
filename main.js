@@ -1,4 +1,4 @@
-// main.js: Infinite Lightning Platformer with Fractal Lightning & Score Display
+// main.js: Infinite Lightning Platformer with Shrinking Platforms & Score Display
 
 // Grab canvas and UI
 document.title = "Lightning Platformer";
@@ -6,8 +6,8 @@ const canvas = document.getElementById("display");
 const ctx = canvas.getContext("2d");
 const W = canvas.width;
 const H = canvas.height;
-const scoreEl = document.getElementById("timer"); // repurposed to show score
-const messageEl = document.getElementById("message"); // game over message
+const scoreEl = document.getElementById("timer");
+const messageEl = document.getElementById("message");
 
 // Lightning parameters
 const DECAY = 0.82;
@@ -60,12 +60,9 @@ class Bolt {
     this.segLen = segLen; this.dx = dx;
   }
   step() {
-    if (Math.random() < KINK_CHANCE) {
-      this.x += rand(2 * MAX_KINK + 1) - MAX_KINK;
-    }
+    if (Math.random() < KINK_CHANCE) this.x += rand(2 * MAX_KINK + 1) - MAX_KINK;
     this.x = Math.max(0, Math.min(W - 1, this.x + this.dx));
-    this.segLen--;
-    if (this.segLen <= 0) {
+    if (--this.segLen <= 0) {
       this.segLen = SEG_MIN_LEN + rand(SEG_MAX_LEN - SEG_MIN_LEN);
       this.dx = [-1, 0, 1][rand(3)];
     }
@@ -76,88 +73,70 @@ class Bolt {
 // ----- Platform Class -----
 class Platform {
   constructor(x, y, w = 32, h = 6) {
-    this.x = x;
-    this.y = y;
-    this.w = w;
-    this.h = h;
-    this.scored = false; // track scoring
+    this.x = x; this.y = y; this.w = w; this.h = h;
+    this.scored = false;
   }
-
   lightAt(bx, by) {
     if (by >= this.y - this.h + 1 && by <= this.y && bx >= this.x && bx < this.x + this.w) {
       for (let dx = 0; dx < this.w; dx++) {
         for (let dy = 0; dy < this.h; dy++) {
-          const px = this.x + dx;
-          const py = this.y - dy;
+          const px = this.x + dx, py = this.y - dy;
           if (px >= 0 && px < W && py >= 0 && py < H) buffer[py * W + px] = 1;
         }
       }
     }
   }
-
   collides(player) {
     return player.vy > 0 &&
       player.x + player.w > this.x && player.x < this.x + this.w &&
       player.prevY + player.h <= this.y && player.y + player.h >= this.y;
   }
 }
-// ----- Lightning Display -----
+
 // ----- Lightning Display -----
 class LightningDisplay {
   constructor(ctx) {
     this.ctx = ctx;
-    // Initialize platforms for the first room
+    this.platforms = [];
+    this.nextWidth = 32;  // dynamic width starts at 32 after first room
     this.resetPlatforms(H - 1, null);
   }
 
   resetPlatforms(baseY = H - 1, playerX = null) {
     this.platforms = [];
     const minWidth = 6;
-    const startWidth = 32;
-    let prevWidth = startWidth;
-
-    // Bottom platform
-    let pw = firstRoom ? W : prevWidth;         // width: full screen first room, else prevWidth
-    let ph = firstRoom ? 1 : 6;                 // height: 1px first room, else 6px
-    let x;
-    if (firstRoom) {
-      x = 0;
-    } else if (playerX != null) {
-      // align center of platform with center of player (player width ~3px)
+    // bottom platform
+    let bw = firstRoom ? W : this.nextWidth;
+    let bh = firstRoom ? 1 : 6;
+    let bx = 0;
+    if (!firstRoom && playerX != null) {
       const centerX = playerX + 1.5;
-      x = Math.round(centerX - pw / 2);
-      x = Math.max(0, Math.min(W - pw, x));
-    } else {
-      x = Math.floor((W - pw) / 2);
+      bx = Math.round(centerX - bw / 2);
+      bx = Math.max(0, Math.min(W - bw, bx));
     }
-    const bottom = new Platform(x, baseY, pw, ph);
+    const bottom = new Platform(bx, baseY, bw, bh);
     if (firstRoom) bottom.scored = true;
     this.platforms.push(bottom);
-    // ensure dynamic platforms start at 32px, not floor width
-    prevWidth = firstRoom ? 32 : pw;
+    // update nextWidth
+    if (firstRoom) this.nextWidth = 32;
+    else this.nextWidth = Math.max(this.nextWidth - 1, minWidth);
 
-    // Two platforms above at 60% and 30%
-    [0.6, 0.3].forEach(f => {
-      const y = Math.floor(baseY * f);
-      const w2 = Math.max(prevWidth - 1, minWidth);
-      const h2 = 6;
-      const minX = Math.floor(0.25 * W);
-      const maxX = Math.floor(0.75 * W) - w2;
-      const x2 = rand(maxX - minX + 1) + minX;
-      this.platforms.push(new Platform(x2, y, w2, h2));
-      prevWidth = w2;
+    // two above
+    let prev = this.nextWidth;
+    [0.6, 0.3].forEach(frac => {
+      const y = Math.floor(baseY * frac);
+      const w = Math.max(prev - 1, minWidth);
+      const h = 6;
+      const minX = Math.floor(0.25 * W), maxX = Math.floor(0.75 * W) - w;
+      const x = rand(maxX - minX + 1) + minX;
+      this.platforms.push(new Platform(x, y, w, h));
+      prev = w;
     });
   }
 
-  fade() {
-    for (let i = 0; i < buffer.length; i++) buffer[i] *= DECAY;
-  }
+  fade() { for (let i = 0; i < buffer.length; i++) buffer[i] *= DECAY; }
 
-  spawnBolts() {
-    if (activeBolts.length < MAX_ACTIVE_BOLTS && Math.random() < BOLT_CHANCE) {
-      activeBolts.push(new Bolt());
-    }
-  }
+  spawnBolts() { if (activeBolts.length < MAX_ACTIVE_BOLTS && Math.random() < BOLT_CHANCE) activeBolts.push(new Bolt()); }
 
   updateBolts() {
     for (let i = activeBolts.length - 1; i >= 0; i--) {
@@ -168,9 +147,8 @@ class LightningDisplay {
         this.platforms.forEach(p => p.lightAt(b.x, b.y));
         let bp = BOLT_BRANCH_BASE * Math.exp(-BRANCH_DECAY * b.depth) * (1 - b.y / H);
         bp = Math.max(bp, BRANCH_MIN_CHANCE);
-        if (Math.random() < bp && activeBolts.length < MAX_ACTIVE_BOLTS) {
+        if (Math.random() < bp && activeBolts.length < MAX_ACTIVE_BOLTS)
           activeBolts.push(new Bolt({ x: b.x, y: b.y, depth: b.depth + 1, segLen: b.segLen, dx: b.dx }));
-        }
         b.step();
       }
       if (b.y >= H) activeBolts.splice(i, 1);
@@ -178,16 +156,11 @@ class LightningDisplay {
   }
 
   render() {
-    if (firstRoom) {
-      for (let x = 0; x < W; x++) buffer[(H - 1) * W + x] = 1;
-    }
+    if (firstRoom) for (let x = 0; x < W; x++) buffer[(H - 1) * W + x] = 1;
     const img = this.ctx.createImageData(W, H);
     for (let i = 0; i < buffer.length; i++) {
       const v = Math.min(255, Math.floor(buffer[i] * 255));
-      img.data[4 * i] = v;
-      img.data[4 * i + 1] = v;
-      img.data[4 * i + 2] = v;
-      img.data[4 * i + 3] = 255;
+      img.data[4 * i] = v; img.data[4 * i + 1] = v; img.data[4 * i + 2] = v; img.data[4 * i + 3] = 255;
     }
     this.ctx.putImageData(img, 0, 0);
   }
@@ -195,31 +168,13 @@ class LightningDisplay {
 
 // ----- Character Class -----
 class Character {
-  constructor() { this.w=3;this.h=3;this.x=W/2;this.y=0;this.prevY=0;this.vy=0; }
-  handleInput() { if(keys.left)this.x-=4; if(keys.right)this.x+=4; this.x=Math.max(0,Math.min(W-this.w,this.x)); }
+  constructor() { this.w = 3; this.h = 3; this.x = W / 2; this.y = 0; this.prevY = 0; this.vy = 0; }
+  handleInput() { if (keys.left) this.x -= 4; if (keys.right) this.x += 4; this.x = Math.max(0, Math.min(W - this.w, this.x)); }
   update(display) {
-    this.prevY = this.y;
-    this.vy += 1;
-    this.y += this.vy;
-
-    // Check landing on platforms
+    this.prevY = this.y; this.vy += 1; this.y += this.vy;
     let landed = null;
-    display.platforms.forEach(p => {
-      if (p.collides(this)) {
-        landed = p;
-        this.y = p.y - this.h;
-        this.vy = -13.6;
-      }
-    });
-
-    // Score on new platform
-    if (landed && !landed.scored) {
-      landed.scored = true;
-      score++;
-      scoreEl.textContent = `${score}`;
-    }
-
-    // Camera shift when reaching topmost platform
+    display.platforms.forEach(p => { if (p.collides(this)) { landed = p; this.y = p.y - this.h; this.vy = -13.6; } });
+    if (landed && !landed.scored) { landed.scored = true; score++; scoreEl.textContent = `${score}`; }
     if (landed) {
       const topY = Math.min(...display.platforms.map(p => p.y));
       if (landed.y === topY) {
@@ -227,33 +182,26 @@ class Character {
         const shift = H - landed.y - landed.h;
         display.platforms.forEach(p => p.y += shift);
         this.y += shift;
-        buffer.fill(0);
-        activeBolts = [];
-        display.resetPlatforms(landed.y, this.x);
+        buffer.fill(0); activeBolts = [];
+        display.resetPlatforms(H - 1, this.x);
       }
     }
-
-    // Lose condition if falling off after first room
-    if (!firstRoom && this.y >= H) {
-      messageEl.innerHTML = `Game Over<br>Score: ${score}`;
-      messageEl.style.display = "block";
-      running = false;
-    }
+    if (!firstRoom && this.y >= H) { messageEl.innerHTML = `Game Over<br>Score: ${score}`; messageEl.style.display = "block"; running = false; }
   }
-  draw() { for(let dx=0;dx<this.w;dx++)for(let dy=0;dy<this.h;dy++){ const px=(this.x+dx)|0,py=(this.y+dy)|0;
-      if(px>=0&&px<W&&py>=0&&py<H) buffer[py*W+px]=1; }}
+  draw() { for (let dx = 0; dx < this.w; dx++) for (let dy = 0; dy < this.h; dy++) {
+      const px = (this.x + dx) | 0, py = (this.y + dy) | 0;
+      if (px >= 0 && px < W && py >= 0 && py < H) buffer[py * W + px] = 1;
+    } }
 }
 
 // ----- Init & Loop -----
-const display=new LightningDisplay(ctx);
-const player=new Character();
-player.y=display.platforms[0].y-player.h;
-messageEl.style.display="none";
+const display = new LightningDisplay(ctx);
+const player = new Character();
+player.y = display.platforms[0].y - player.h;
+messageEl.style.display = "none";
 scoreEl.textContent = `0`;
 
-function loop(time){ if(!running) return;
-  if(time-lastTime<FRAME_INT) return requestAnimationFrame(loop);
-  lastTime=time;
+function loop(time) { if (!running) return; if (time - lastTime < FRAME_INT) return requestAnimationFrame(loop); lastTime = time;
   display.fade(); display.spawnBolts(); display.updateBolts();
   player.handleInput(); player.update(display); player.draw();
   display.render(); requestAnimationFrame(loop);
