@@ -11,7 +11,7 @@ const messageEl = document.getElementById("message");
 
 // Lightning parameters
 const DECAY = 0.82;
-const BOLT_CHANCE = 0.07;
+const BOLT_CHANCE = 0.09;
 const BOLT_SPEED = 25;
 const MAX_ACTIVE_BOLTS = 25;
 const BOLT_BRANCH_BASE = 0.02;
