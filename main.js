@@ -13,7 +13,7 @@ const controlsEl = document.getElementById('controls');
 
 // Lightning parameters
 const DECAY = 0.82;
-const BOLT_CHANCE = 0.09;
+const BOLT_CHANCE = 0.1;
 const BOLT_SPEED = 25;
 const MAX_ACTIVE_BOLTS = 25;
 const BOLT_BRANCH_BASE = 0.02;
@@ -58,6 +58,33 @@ const FRAME_INT = 1000 / 30;
 function rand(n) {
   return Math.floor(Math.random() * n);
 }
+
+// draw text offscreen and grab its opaque pixels
+function getLogoPixels(text, font, W, H) {
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const octx = off.getContext('2d');
+  octx.fillStyle = 'white';
+  octx.font = font;       // e.g. "12px Press Start 2P"
+  octx.textBaseline = 'top';
+  // center the text
+  const m = octx.measureText(text);
+  const x0 = Math.floor((W - m.width) / 2);
+  const y0 = Math.floor(H * 0.4);
+  octx.fillText(text, x0, y0);
+
+  const data = octx.getImageData(0, 0, W, H ).data;
+  const pixels = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (data[(y * W + x) * 4 + 3] > 0) {
+        pixels.push([x, y]);
+      }
+    }
+  }
+  return pixels;
+}
+
 
 // ----- Bolt Class -----
 class Bolt {
@@ -134,6 +161,24 @@ class Cloud {
   }
 }
 
+// ----- Logo Class -----
+class Logo {
+  constructor(pixels) {
+    // pixels: array of [x,y] coords spelling "PixelBolt"
+    this.pixels = pixels;
+  }
+  checkAndLight(bx, by) {
+    // if a bolt hits any logo pixel, light all of them
+    for (const [lx, ly] of this.pixels) {
+      if (lx === bx && ly === by) {
+        this.pixels.forEach(([px, py]) => buffer[py * W + px] = 1);
+        break;
+      }
+    }
+  }
+}
+
+
 // ----- Platform Class -----
 class Platform {
   constructor(x, y, w = 32, h = 6) {
@@ -175,6 +220,45 @@ class LightningDisplay {
       const cy = Math.floor(H / 5);
       this.clouds.push(new Cloud(cx, cy));
     }
+
+    this.logos = [];
+
+    if (firstRoom) {
+      // 1) get the base pixels
+      const base = getLogoPixels('P i x e l B o l t', '12px Press Start 2P', W, H);
+
+      // 2) compute its bounding box
+      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+      base.forEach(([x,y])=>{
+        if (x<minX) minX=x;
+        if (y<minY) minY=y;
+        if (x>maxX) maxX=x;
+        if (y>maxY) maxY=y;
+      });
+      const bw = maxX - minX + 1;   // base width
+      const bh = maxY - minY + 1;   // base height
+
+      // 3) figure out how to center the 3× version
+      const offsetX = Math.floor((W - bw * 3) / 2);
+      const offsetY = Math.floor((H - bh * 3) / 2);
+
+      // 4) build the scaled‑up pixel list
+      const scaled = [];
+      base.forEach(([x,y])=>{
+        const sx = (x - minX)*3 + offsetX;
+        const sy = (y - minY)*3 + offsetY;
+        for (let dx = 0; dx < 3; dx++) {
+          for (let dy = 0; dy < 3; dy++) {
+            scaled.push([ sx + dx, sy + dy ]);
+          }
+        }
+      });
+
+      // 5) finally add your logo
+      this.logos.push(new Logo(scaled));
+    }
+
+
     this.platforms = [];
     this.nextWidth = 32;  // dynamic width starts at 32 after first room
     this.resetPlatforms(H - 1, null);
@@ -234,6 +318,9 @@ class LightningDisplay {
       buffer[b.y * W + b.x] = 1 / (b.depth + 1);
       // light scene
       if (firstRoom) this.trees.forEach(t => t.checkAndLight(b.x, b.y));
+
+      if (firstRoom) this.logos.forEach(l => l.checkAndLight(b.x, b.y));
+
       this.clouds.forEach(c => c.checkAndLight(b.x, b.y));
       this.platforms.forEach(p => {
         const pyStart = p.y - p.h + 1;
