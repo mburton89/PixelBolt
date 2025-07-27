@@ -1,78 +1,78 @@
-// main.js: Lightning + Character Controller Demo with Timer & Win Condition (30 FPS throttle)
+// main.js: Infinite Lightning Platformer with Shrinking Platforms & Score Display
 
-// Grab canvas and UI elements
+// Grab canvas and UI
+document.title = "Lightning Platformer";
 const canvas = document.getElementById("display");
-const ctx    = canvas.getContext("2d");
-const W = canvas.width, H = canvas.height;
-const timerEl   = document.getElementById('timer');
-const messageEl = document.getElementById('message');
+const ctx = canvas.getContext("2d");
+const W = canvas.width;
+const H = canvas.height;
+const scoreEl = document.getElementById("timer");
+const messageEl = document.getElementById("message");
+const goalEl     = document.getElementById('goal');
+const controlsEl = document.getElementById('controls');
 
-// Persistence and spawn controls
-const DECAY            = 0.82;
-const BOLT_CHANCE      = 0.05;
-const BOLT_SPEED       = 25;
+// Lightning parameters
+const DECAY = 0.82;
+const BOLT_CHANCE = 0.09;
+const BOLT_SPEED = 25;
 const MAX_ACTIVE_BOLTS = 25;
-
-// Branching parameters
 const BOLT_BRANCH_BASE = 0.02;
-const BRANCH_DECAY      = 2.5;
+const BRANCH_DECAY = 2.5;
 const BRANCH_MIN_CHANCE = 0.002;
+const SEG_MIN_LEN = 10;
+const SEG_MAX_LEN = 30;
+const MAX_KINK = 2;
+const KINK_CHANCE = 0.1;
 
-// Zig-zag parameters
-const SEGMENT_MIN_LENGTH = 10;
-const SEGMENT_MAX_LENGTH = 30;
-const MAX_KINK           = 2;
-const KINK_CHANCE        = 0.1;
-
-// Frame buffer
+// Frame buffer and bolt list
 const buffer = new Float32Array(W * H);
-const activeBolts = [];
+let activeBolts = [];
 
-// Timer & game state
-let startTime = null;
-let running   = true;
+// Sound effects
+const jumpSound = new Audio('jump.wav');
+jumpSound.preload = 'auto';
+const thunderSounds = [ new Audio('thunder-0.wav') ];
+thunderSounds[0].preload = 'auto';
 
-// Frame throttling (30 FPS)
-let lastFrameTime = 0;
-const FRAME_INTERVAL = 1000 / 30;
+// Game state
+let score = 0;
+let firstRoom = true;
+let running = true;
 
 // Input state
-const keys = { left: false, right: false, up: false };
-window.addEventListener('keydown', e => {
-  if (e.code === 'ArrowLeft')  keys.left = true;
-  if (e.code === 'ArrowRight') keys.right = true;
-  if (e.code === 'Space') {
-    if (!keys.up && player.onGround && !startTime) {
-      // First jump starts timer
-      startTime = performance.now();
-    }
-    keys.up = true;
-  }
+const keys = { left: false, right: false };
+window.addEventListener("keydown", e => {
+  if (e.code === "ArrowLeft") keys.left = true;
+  if (e.code === "ArrowRight") keys.right = true;
 });
-window.addEventListener('keyup', e => {
-  if (e.code === 'ArrowLeft')  keys.left = false;
-  if (e.code === 'ArrowRight') keys.right = false;
-  if (e.code === 'Space')      keys.up = false;
+window.addEventListener("keyup", e => {
+  if (e.code === "ArrowLeft") keys.left = false;
+  if (e.code === "ArrowRight") keys.right = false;
 });
 
-// ------- Bolt Class -------
+// Frame rate
+let lastTime = 0;
+const FRAME_INT = 1000 / 30;
+
+// Utility
+function rand(n) {
+  return Math.floor(Math.random() * n);
+}
+
+// ----- Bolt Class -----
 class Bolt {
-  constructor({ x = Math.floor(Math.random() * W), y = 0, depth = 0,
-                segmentLength = SEGMENT_MIN_LENGTH + Math.floor(Math.random() * (SEGMENT_MAX_LENGTH - SEGMENT_MIN_LENGTH + 1)),
-                dxSegment = [-1, 0, 1][Math.floor(Math.random() * 3)] } = {}) {
+  constructor({ x = rand(W), y = 0, depth = 0,
+                segLen = SEG_MIN_LEN + rand(SEG_MAX_LEN - SEG_MIN_LEN),
+                dx = [-1, 0, 1][rand(3)] } = {}) {
     this.x = x; this.y = y; this.depth = depth;
-    this.segmentLength = segmentLength;
-    this.dxSegment = dxSegment;
+    this.segLen = segLen; this.dx = dx;
   }
   step() {
-    if (Math.random() < KINK_CHANCE) {
-      this.x += Math.floor(Math.random() * (2 * MAX_KINK + 1)) - MAX_KINK;
-    }
-    this.x += this.dxSegment;
-    this.segmentLength--;
-    if (this.segmentLength <= 0) {
-      this.segmentLength = SEGMENT_MIN_LENGTH + Math.floor(Math.random() * (SEGMENT_MAX_LENGTH - SEGMENT_MIN_LENGTH + 1));
-      this.dxSegment = [-1, 0, 1][Math.floor(Math.random() * 3)];
+    if (Math.random() < KINK_CHANCE) this.x += rand(2 * MAX_KINK + 1) - MAX_KINK;
+    this.x = Math.max(0, Math.min(W - 1, this.x + this.dx));
+    if (--this.segLen <= 0) {
+      this.segLen = SEG_MIN_LEN + rand(SEG_MAX_LEN - SEG_MIN_LEN);
+      this.dx = [-1, 0, 1][rand(3)];
     }
     this.y++;
   }
@@ -134,204 +134,227 @@ class Cloud {
   }
 }
 
-// ------- Platform Class -------
+// ----- Platform Class -----
 class Platform {
-  constructor(x, y) {
-    this.x = x; this.y = y;
-    this.w = 32; this.h = 6;
-    this.pixels = [];
-    for (let dx = 0; dx < this.w; dx++) for (let dy = 0; dy < this.h; dy++) {
-      const px = x + dx, py = y + dy;
-      if (px >= 0 && px < W && py >= 0 && py < H) this.pixels.push([px, py]);
-    }
+  constructor(x, y, w = 32, h = 6) {
+    this.x = x; this.y = y; this.w = w; this.h = h;
+    this.scored = false;
   }
-  checkAndLight(bx, by) {
-    for (const [tx, ty] of this.pixels) {
-      if (tx === bx && ty === by) {
-        this.pixels.forEach(([lx, ly]) => buffer[ly * W + lx] = 1);
-        return;
+  lightAt(bx, by) {
+    if (by >= this.y - this.h + 1 && by <= this.y && bx >= this.x && bx < this.x + this.w) {
+      for (let dx = 0; dx < this.w; dx++) {
+        for (let dy = 0; dy < this.h; dy++) {
+          const px = this.x + dx, py = this.y - dy;
+          if (px >= 0 && px < W && py >= 0 && py < H) buffer[py * W + px] = 1;
+        }
       }
     }
+  }
+  collides(player) {
+    return player.vy > 0 &&
+      player.x + player.w > this.x && player.x < this.x + this.w &&
+      player.prevY + player.h <= this.y && player.y + player.h >= this.y;
   }
 }
 
-// ------- House Class -------
-class House {
-  constructor(x, y) {
-    this.pixels = [];
-    const w = 20, h = 12;
-    for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < h; dy++) {
-      const px = x + dx, py = y - dy;
-      if (px >= 0 && px < W && py >= 0 && py < H) this.pixels.push([px, py]);
-    }
-    for (let dy = 0; dy < Math.floor(h/2); dy++) {
-      const rowW = w - 2*dy, startX = x + dy, rowY = y - h - dy;
-      for (let dx = 0; dx < rowW; dx++) {
-        const px = startX + dx, py = rowY;
-        if (px >= 0 && px < W && py >= 0 && py < H) this.pixels.push([px, py]);
-      }
-    }
-  }
-  checkAndLight(bx, by) {
-    for (const [tx, ty] of this.pixels) {
-      if (tx === bx && ty === by) {
-        this.pixels.forEach(([lx, ly]) => buffer[ly * W + lx] = 1);
-        return;
-      }
-    }
-  }
-}
-
-// ------- Display Manager -------
+// ----- Lightning Display -----
 class LightningDisplay {
   constructor(ctx) {
     this.ctx = ctx;
-    this.house = new House(W-30, H-1);
+    // set up scene elements
     this.trees = [];
-    this.clouds = [];
-    this.platforms = [];
     const treeCount = 4;
     for (let i = 0; i < treeCount; i++) {
-      const x = Math.floor((i+1) * W/(treeCount+1));
-      this.trees.push(new Tree(x, H-1));
+      const x = Math.floor((i + 1) * W / (treeCount + 1));
+      this.trees.push(new Tree(x, H - 1));
     }
+    this.clouds = [];
     const cloudCount = 3;
     for (let i = 0; i < cloudCount; i++) {
-      const cx = Math.floor(Math.random() * W), cy = Math.floor(H/5);
+      const cx = rand(W);
+      const cy = Math.floor(H / 5);
       this.clouds.push(new Cloud(cx, cy));
     }
-    const PLATFORM_W = 32;
-    const levels = [0.25, 0.5, 0.75];
-    levels.forEach(frac => {
-      const y = Math.floor(H * frac);
-      // define left/right bounds
-      const minX = Math.floor(0.15 * W);
-      const maxX = Math.floor(0.85 * W) - PLATFORM_W;
-      // pick inside that band
-      const x = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
-      this.platforms.push(new Platform(x, y));
+    this.platforms = [];
+    this.nextWidth = 32;  // dynamic width starts at 32 after first room
+    this.resetPlatforms(H - 1, null);
+  }
+
+  resetPlatforms(baseY = H - 1, playerX = null) {
+    this.platforms = [];
+    const minWidth = 6;
+
+    // bottom platform
+    let bw = firstRoom ? W : this.nextWidth;
+    let bh = firstRoom ? 1 : 6;
+    let bx = 0;
+    if (!firstRoom && playerX != null) {
+      const centerX = playerX + 1.5;
+      bx = Math.round(centerX - bw / 2);
+      bx = Math.max(0, Math.min(W - bw, bx));
+    }
+    const bottom = new Platform(bx, baseY, bw, bh);
+    if (firstRoom) bottom.scored = true;
+    this.platforms.push(bottom);
+
+    // update nextWidth for subsequent rooms
+    if (firstRoom) this.nextWidth = 32;
+    else this.nextWidth = Math.max(this.nextWidth - 1, minWidth);
+
+    // two platforms above at 60% and 30% heights
+    let prev = this.nextWidth;
+    [0.6, 0.3].forEach(frac => {
+      const y = Math.floor(baseY * frac);
+      const w = Math.max(prev - 1, minWidth);
+      const h = 6;
+      const minX = Math.floor(0.25 * W);
+      const maxX = Math.floor(0.75 * W) - w;
+      const x = rand(maxX - minX + 1) + minX;
+      this.platforms.push(new Platform(x, y, w, h));
+      prev = w;
     });
   }
+
   fade() {
     for (let i = 0; i < buffer.length; i++) buffer[i] *= DECAY;
   }
-  spawn() {
-    if (activeBolts.length < MAX_ACTIVE_BOLTS && Math.random() < BOLT_CHANCE) activeBolts.push(new Bolt());
-  }
-  updateBolts() {
-    for (let i = activeBolts.length - 1; i >= 0; i--) {
-      const b = activeBolts[i];
-      for (let s = 0; s < BOLT_SPEED; s++) {
-        buffer[b.y * W + b.x] = 1 / (b.depth + 1);
-        this.trees.forEach(t => t.checkAndLight(b.x, b.y));
-        this.clouds.forEach(c => c.checkAndLight(b.x, b.y));
-        this.house.checkAndLight(b.x, b.y);
-        this.platforms.forEach(p => p.checkAndLight(b.x, b.y));
-        if (b.y >= H - 1) break;
-        let bc = BOLT_BRANCH_BASE * Math.exp(-BRANCH_DECAY * b.depth) * (1 - b.y / H);
-        bc = Math.max(bc, BRANCH_MIN_CHANCE);
-        if (Math.random() < bc && activeBolts.length < MAX_ACTIVE_BOLTS) activeBolts.push(new Bolt({ x:b.x, y:b.y, depth:b.depth+1, segmentLength:b.segmentLength, dxSegment:b.dxSegment }));
-        b.step();
-      }
-      if (b.y >= H - 1) activeBolts.splice(i, 1);
+
+  spawnBolts() {
+    if (activeBolts.length < MAX_ACTIVE_BOLTS && Math.random() < BOLT_CHANCE) {
+      activeBolts.push(new Bolt());
     }
   }
+
+  updateBolts() {
+  for (let i = activeBolts.length - 1; i >= 0; i--) {
+    const b = activeBolts[i];
+    for (let s = 0; s < BOLT_SPEED; s++) {
+      if (b.y >= H) break;
+      // draw bolt pixel
+      buffer[b.y * W + b.x] = 1 / (b.depth + 1);
+      // light scene
+      if (firstRoom) this.trees.forEach(t => t.checkAndLight(b.x, b.y));
+      this.clouds.forEach(c => c.checkAndLight(b.x, b.y));
+      this.platforms.forEach(p => {
+        const pyStart = p.y - p.h + 1;
+        if (b.y >= pyStart && b.y <= p.y && b.x >= p.x && b.x < p.x + p.w) {
+          p.lightAt(b.x, b.y);
+          // play thunder sound once per intersection
+          const t = thunderSounds[0];
+          if (t.paused) {
+            t.playbackRate = 0.5 + Math.random() * 1.0;
+            t.currentTime = 0;
+            t.play();
+          }
+        }
+      });
+      // branching logic
+      let bp = BOLT_BRANCH_BASE * Math.exp(-BRANCH_DECAY * b.depth) * (1 - b.y / H);
+      bp = Math.max(bp, BRANCH_MIN_CHANCE);
+      if (Math.random() < bp && activeBolts.length < MAX_ACTIVE_BOLTS) {
+        activeBolts.push(new Bolt({ x: b.x, y: b.y, depth: b.depth + 1, segLen: b.segLen, dx: b.dx }));
+      }
+      b.step();
+    }
+    if (b.y >= H) activeBolts.splice(i, 1);
+  }
+}
+
   render() {
+    if (firstRoom) {
+      for (let x = 0; x < W; x++) buffer[(H - 1) * W + x] = 1;
+    }
     const img = this.ctx.createImageData(W, H);
     for (let i = 0; i < buffer.length; i++) {
       const v = Math.min(255, Math.floor(buffer[i] * 255));
-      img.data[i*4] = v; img.data[i*4+1] = v; img.data[i*4+2] = v; img.data[i*4+3] = 255;
+      img.data[4 * i] = v;
+      img.data[4 * i + 1] = v;
+      img.data[4 * i + 2] = v;
+      img.data[4 * i + 3] = 255;
     }
     this.ctx.putImageData(img, 0, 0);
   }
 }
 
-// ------- Character -------
+// ----- Character Class -----
 class Character {
-  constructor() {
-    this.x = W/2;
-    this.y = H-1;
-    this.vy = 0;
-    this.onGround = false;   // start in the air so first landing bounces
-    this.w = 3; this.h = 3;
-  }
-
-  handleInput() {
-    if (keys.left)  this.x -= 7;
-    if (keys.right) this.x += 7;
-    this.x = Math.max(0, Math.min(W - this.w, this.x));
-  }
-
+  constructor() { this.w = 3; this.h = 3; this.x = W / 2; this.y = 0; this.prevY = 0; this.vy = 0; }
+  handleInput() { if (keys.left) this.x -= 7; if (keys.right) this.x += 7; this.x = Math.max(0, Math.min(W - this.w, this.x)); }
   update(display) {
-    const prevY = this.y;
+    this.prevY = this.y; this.vy += 1; this.y += this.vy;
+    let landed = null;
+    display.platforms.forEach(p => { if (p.collides(this)) { landed = p; this.y = p.y - this.h; this.vy = -13.6;
+        // play jump sound with random pitch
+        jumpSound.playbackRate = 0.5 + Math.random() * 1.0; // randomize between 0.5x and 1.5x
+        jumpSound.currentTime = 0;
+        jumpSound.play(); } });
+    if (landed && !landed.scored) { landed.scored = true; score++; scoreEl.textContent = `${score}`; }
+    if (landed) {
+      const topY = Math.min(...display.platforms.map(p => p.y));
+      if (landed.y === topY) {
+        firstRoom = false;
 
-    // gravity
-    this.vy += 1.0;
-    this.y  += this.vy;
-    this.onGround = false;
+        // hide the goal & controls
+        goalEl.style.display     = 'none';
+        controlsEl.style.display = 'none';
 
-    // floor collision
-    if (this.y >= H - this.h) {
-      this.y = H - this.h;
-      this.vy = 0;
-      this.onGround = true;
-    }
-
-    // platform collisions (unchanged)...
-    display.platforms.forEach(p => {
-      if (this.vy > 0
-         && this.x + this.w > p.x && this.x < p.x + p.w
-         && prevY + this.h <= p.y && this.y + this.h >= p.y
-      ) {
-        this.y = p.y - this.h;
-        this.vy = 0;
-        this.onGround = true;
+        const shift = H - landed.y - landed.h;
+        // Camera Shift Logic
+        display.platforms.forEach(p => p.y += shift);
+        this.y += shift;
+        buffer.fill(0); activeBolts = [];
+        display.resetPlatforms(H - 1, this.x);
       }
-    });
-
-    // *** New: automatic bounce whenever onGround ***
-    if (this.onGround) {
-      this.vy = -13.1;      // jump strength
-      this.onGround = false;
-      // start the timer on first bounce
-      if (!startTime) startTime = performance.now();
+    }
+    if (!firstRoom && this.y >= H) {
+      messageEl.innerHTML = `Game Over<br>Score: ${score}<br>Press Space to Restart`;
+      messageEl.style.display = "block";
+      running = false;
     }
   }
-
-  draw() {
-    for (let dx = 0; dx < this.w; dx++)
-      for (let dy = 0; dy < this.h; dy++) {
-        const px = Math.floor(this.x + dx),
-              py = Math.floor(this.y + dy);
-        buffer[py * W + px] = 1;
-      }
-  }
+  draw() { for (let dx = 0; dx < this.w; dx++) for (let dy = 0; dy < this.h; dy++) {
+      const px = (this.x + dx) | 0, py = (this.y + dy) | 0;
+      if (px >= 0 && px < W && py >= 0 && py < H) buffer[py * W + px] = 1;
+    } }
 }
 
-// ------- Main Loop -------
+// ----- Init & Loop -----
 const display = new LightningDisplay(ctx);
-const player  = new Character();
+const player = new Character();
+player.x = W / 2;
+player.y = display.platforms[0].y - player.h;
+messageEl.style.display = "none";
+scoreEl.textContent = `0`;
 
-function loop(now) {
-  if (now - lastFrameTime < FRAME_INTERVAL) return requestAnimationFrame(loop);
-  lastFrameTime = now;
+// Restart on Space after game over
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !running) {
+    // reset game state
+    score = 0;
+    firstRoom = true;
+    running = true;
+    messageEl.style.display = "none";
+    scoreEl.textContent = `0`;
+    buffer.fill(0);
+    activeBolts = [];
+    display.nextWidth = 32;
+    display.resetPlatforms(H - 1, null);
+    player.x = W / 2;
+    player.y = display.platforms[0].y - player.h;
+    player.vy = 0;
+    player.prevY = player.y;
+    requestAnimationFrame(loop);
+  }
+});
+
+function loop(time) {
   if (!running) return;
-  if (startTime) {
-    const elapsed = (now - startTime) / 1000;
-    timerEl.textContent = elapsed.toFixed(2);
-  }
-  display.fade();
-  display.spawn();
-  display.updateBolts();
-  player.handleInput();
-  player.update(display);
-  player.draw();
+  if (time - lastTime < FRAME_INT) return requestAnimationFrame(loop);
+  lastTime = time;
+
+  display.fade(); display.spawnBolts(); display.updateBolts();
+  player.handleInput(); player.update(display); player.draw();
   display.render();
-  if (player.y <= 0) {
-    running = false;
-    messageEl.style.display = 'block';
-    return;
-  }
   requestAnimationFrame(loop);
 }
 
