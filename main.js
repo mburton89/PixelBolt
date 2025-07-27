@@ -240,7 +240,7 @@ class LightningDisplay {
 
       // 3) figure out how to center the 3× version
       const offsetX = Math.floor((W - bw * 3) / 2);
-      const offsetY = Math.floor((H - bh * 3) / 2);
+      const offsetY = Math.floor((H - bh * 7.2) / 2);
 
       // 4) build the scaled‑up pixel list
       const scaled = [];
