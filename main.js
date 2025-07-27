@@ -8,6 +8,8 @@ const W = canvas.width;
 const H = canvas.height;
 const scoreEl = document.getElementById("timer");
 const messageEl = document.getElementById("message");
+const goalEl     = document.getElementById('goal');
+const controlsEl = document.getElementById('controls');
 
 // Lightning parameters
 const DECAY = 0.82;
@@ -291,7 +293,13 @@ class Character {
       const topY = Math.min(...display.platforms.map(p => p.y));
       if (landed.y === topY) {
         firstRoom = false;
+
+        // hide the goal & controls
+        goalEl.style.display     = 'none';
+        controlsEl.style.display = 'none';
+
         const shift = H - landed.y - landed.h;
+        // Camera Shift Logic
         display.platforms.forEach(p => p.y += shift);
         this.y += shift;
         buffer.fill(0); activeBolts = [];
