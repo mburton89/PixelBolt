@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lightning Platformer</title>
+  <!-- Pixel font -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-family: 'Press Start 2P', cursive;
+      animation: flicker 2s infinite;
+      cursor: crosshair;
+    }
+    @keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.97; } }
+    /* Scanlines */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-image: repeating-linear-gradient(rgba(0,0,0,0.2) 0, rgba(0,0,0,0.2) 1px, transparent 1px, transparent 3px);
+      pointer-events: none;
+      animation: scan 7s linear infinite;
+      z-index: 9999;
+    }
+    @keyframes scan { from { background-position-y: 0; } to { background-position-y: 100vh; } }
+    #container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    canvas {
+      image-rendering: pixelated;
+      border: 2px solid #fff;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      z-index: 1;
+    }
+    canvas.glitch {
+      animation: glitch 0.3s linear;
+    }
+    @keyframes glitch {
+      0% { transform: none; }
+      20% { transform: translate(-2px, 2px); }
+      40% { transform: translate(2px, -2px); }
+      60% { transform: translate(-2px, -2px); }
+      80% { transform: translate(2px, 2px); }
+      100% { transform: none; }
+    }
+    #ui {
+      position: absolute;
+      top: 1em;
+      left: 1em;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 0.5em 1em;
+      border: 2px solid #fff;
+      border-radius: 4px;
+      line-height: 1.4;
+      font-size: calc(0.5vw + 0.75em);
+      color: #fff;
+      text-shadow: 0 0 5px #fff;
+      box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.5);
+      z-index: 2;
+    }
+    #message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 2em 3em;
+      border: 2px solid #fff;
+      border-radius: 8px;
+      font-size: calc(1vw + 1.5em);
+      display: none;
+      text-align: center;
+      max-width: 80%;
+      box-sizing: border-box;
+      color: #fff;
+      text-shadow: 0 0 5px #fff;
+      box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.5);
+      z-index: 2;
+    }
+    #message p {
+      margin: 0.5em 0;
+    }
+    .lightning-flash {
+      position: absolute;
+      pointer-events: none;
+      background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%);
+      z-index: 3;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="ui">
+      <div id="goal">GOAL: Reach the top</div>
+      <div id="controls">CONTROLS: ← → to move</div>
+      <div>SCORE: <span id="timer">0</span></div>
+    </div>
+    <div id="message">
+      <p>YOU WIN!</p>
+      <p>Refresh</p>
+      <p>¯\_(ツ)_/¯</p>
+    </div>
+    <canvas id="display" width="320" height="180"></canvas>
+  </div>
+  <script src="main.js"></script>
+  <script>
+    // Lightning flash and glitch on canvas click
+    function createLightningFlash(x, y, element) {
+      const flash = document.createElement('div');
+      flash.className = 'lightning-flash';
+      flash.style.width = '100px';
+      flash.style.height = '100px';
+      flash.style.left = `${x - 50}px`;
+      flash.style.top = `${y - 50}px`;
+      document.body.appendChild(flash);
+      element.classList.add('glitch');
+      setTimeout(() => {
+        flash.style.opacity = '0';
+        flash.style.transition = 'opacity 0.5s';
+        element.classList.remove('glitch');
+        setTimeout(() => flash.remove(), 500);
+      }, 50);
+    }
+
+    document.getElementById('display').addEventListener('click', (e) => {
+      const rect = e.target.getBoundingClientRect();
+      const x = e.clientX - rect.left + window.scrollX;
+      const y = e.clientY - rect.top + window.scrollY;
+      createLightningFlash(x, y, e.target);
+    });
+  </script>
+</body>
+</html>

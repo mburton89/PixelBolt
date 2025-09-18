@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Become Superhuman</title>
+  <title>321FIT - Become Superhuman</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
@@ -111,41 +111,44 @@
       text-shadow: 0 0 10px #fff, 0 0 20px #fff;
       margin: 1em 0;
       transition: text-shadow 0.3s;
-      display: none;
-    }
-    #title.visible {
-      display: block;
     }
     #title:hover {
       text-shadow: 0 0 15px #fff, 0 0 30px #fff;
     }
-    #body-text {
+    .section {
       font-family: Consolas, monospace;
       font-size: calc(0.6vw + 0.8em);
       line-height: 1.6;
       background: transparent;
-      padding: 1.5em;
+      padding: 0.5em 1.5em;
       border-radius: 8px;
       width: 100%;
       margin: 0 0 1em 0;
       transition: text-shadow 0.3s;
-      visibility: hidden;
       white-space: pre-wrap;
-      min-height: 240px;
     }
-    #body-text.visible {
-      visibility: visible;
-    }
-    #body-text:hover {
+    .section:hover {
       text-shadow: 0 0 5px #fff;
     }
-    #body-text strong {
+    .section strong {
       color: #fff;
       text-shadow: 0 0 5px #fff;
     }
-    .cta-button {
+    .app-image {
+      display: block;
+      width: 100%;
+      max-width: 600px;
+      margin: 1em auto;
+      border: 2px solid #fff;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+    .button-container {
+      text-align: center;
+      margin: 1em 0;
+    }
+    .app-button {
       font-family: Consolas, monospace;
-      display: none;
       background: #fff;
       color: #000;
       text-decoration: none;
@@ -155,12 +158,10 @@
       font-size: calc(0.6vw + 0.8em);
       text-shadow: 0 0 5px #fff;
       transition: box-shadow 0.3s;
-      margin: 1em auto;
-    }
-    .cta-button.visible {
+      margin: 0 0.5em;
       display: inline-block;
     }
-    .cta-button:hover {
+    .app-button:hover {
       box-shadow: 0 0 10px #fff, 0 0 20px #fff;
     }
   </style>
@@ -177,42 +178,18 @@
       </nav>
     </header>
     <div id="content">
-      <div id="body-text">Wake up, hero...<br>The LPI has you...<br>Follow the lightning.<br><br>By nature, you are <strong>superhuman</strong>—capable of extraordinary feats of strength, creativity, and resilience. Yet, the <strong>distractions</strong> of the modern world—endless screens, social media, junk food, and division—cloud your vision, as the <strong>devil’s pawns</strong> in the Loser Programming Initiative (LPI) profit from keeping you weak, fat, poor, drunk, distracted, and disconnected from God. Strip away these barriers to awaken your <strong>limitless power</strong>.</div>
-      <div id="title">Become Superhuman</div>
-      <a href="https://www.university.com/" class="cta-button" target="_blank">Join the Fight</a>
+      <div id="title">321FIT: Your Superhuman Workout Companion</div>
+      <img src="images\321fit-image.jpeg" alt="321FIT App Preview" class="app-image">
+      <div class="section"><strong>PLAN</strong><br>Unleash your <strong>superhuman potential</strong> by crafting your own workouts or selecting pre-loaded regimens designed to forge strength, agility, and resilience. Define <strong>TIME</strong>, <strong>SETS</strong>, <strong>REPS</strong>, and <strong>WEIGHT</strong> to sculpt a training plan that defies ordinary limits.</div>
+      <div class="section"><strong>PLAY</strong><br>Activate your inner hero with the <strong>PLAY</strong> feature, guiding you through each exercise with precision timing. Focus on crushing <strong>TIME</strong>, <strong>SETS</strong>, <strong>REPS</strong>, and <strong>WEIGHT</strong> as 321FIT’s audio cues and unique <strong>ETA</strong> display empower you to dominate your workout like a true superhuman.</div>
+      <div class="section"><strong>LOG</strong><br>Track your ascent to greatness by logging progress before, during, or after each session. Every rep fuels your journey to <strong>limitless power</strong>, pushing you to surpass your previous feats.</div>
+      <div class="button-container">
+        <a href="https://apps.apple.com/us/app/321fit/id1435831475" class="app-button" target="_blank">Get on App Store</a>
+        <a href="https://play.google.com/store/apps/details?id=com.matthewburton.workoutq&hl=en_US" class="app-button" target="_blank">Get on Google Play</a>
+      </div>
     </div>
     <canvas id="display" width="320" height="180"></canvas>
   </div>
   <script src="lightning.js"></script>
-  <script>
-    // Typewriter effect for body text
-    function typeWriter(element, htmlContent, plainText, speed = 20) {
-      element.innerHTML = '';
-      element.classList.add('visible');
-      let i = 0;
-      
-      function type() {
-        if (i < plainText.length) {
-          element.textContent += plainText.charAt(i);
-          i++;
-          setTimeout(type, speed);
-        } else {
-          element.innerHTML = htmlContent;
-          document.querySelector('#title').classList.add('visible');
-          document.querySelector('.cta-button').classList.add('visible');
-        }
-      }
-      
-      type();
-    }
-
-    // Start typewriter effect on load
-    window.addEventListener('load', () => {
-      const bodyText = document.getElementById('body-text');
-      const htmlContent = bodyText.innerHTML;
-      const plainText = htmlContent.replace(/<strong>/g, '').replace(/<\/strong>/g, '').replace(/<br>/g, '\n');
-      typeWriter(bodyText, htmlContent, plainText);
-    });
-  </script>
 </body>
 </html>
