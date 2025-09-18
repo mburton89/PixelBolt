@@ -111,6 +111,7 @@
       text-shadow: 0 0 10px #fff, 0 0 20px #fff;
       margin: 1em 0;
       transition: text-shadow 0.3s;
+      text-align: center;
     }
     #title:hover {
       text-shadow: 0 0 15px #fff, 0 0 30px #fff;
@@ -133,6 +134,34 @@
     .section strong {
       color: #fff;
       text-shadow: 0 0 5px #fff;
+    }
+    .privacy-policy {
+      font-family: Consolas, monospace;
+      font-size: calc(0.6vw + 0.7em);
+      line-height: 1.6;
+      background: transparent;
+      padding: 0.5em 1.5em;
+      border-radius: 8px;
+      width: 100%;
+      margin: 0 0 1em 0;
+      transition: text-shadow 0.3s;
+      white-space: pre-wrap;
+    }
+    .privacy-policy:hover {
+      text-shadow: 0 0 5px #fff;
+    }
+    .privacy-policy strong {
+      color: #fff;
+      text-shadow: 0 0 5px #fff;
+    }
+    .privacy-policy a {
+      color: #fff;
+      text-decoration: none;
+      text-shadow: 0 0 5px #fff;
+      transition: text-shadow 0.3s;
+    }
+    .privacy-policy a:hover {
+      text-shadow: 0 0 10px #fff;
     }
     .app-image {
       display: block;
@@ -179,7 +208,7 @@
     </header>
     <div id="content">
       <div id="title">321FIT: Your Superhuman Workout Companion</div>
-      <img src="images\321fit-image.jpeg" alt="321FIT App Preview" class="app-image">
+      <img src="images/321fit-image.JPEG" alt="321FIT App Preview" class="app-image">
       <div class="section"><strong>PLAN</strong><br>Unleash your <strong>superhuman potential</strong> by crafting your own workouts or selecting pre-loaded regimens designed to forge strength, agility, and resilience. Define <strong>TIME</strong>, <strong>SETS</strong>, <strong>REPS</strong>, and <strong>WEIGHT</strong> to sculpt a training plan that defies ordinary limits.</div>
       <div class="section"><strong>PLAY</strong><br>Activate your inner hero with the <strong>PLAY</strong> feature, guiding you through each exercise with precision timing. Focus on crushing <strong>TIME</strong>, <strong>SETS</strong>, <strong>REPS</strong>, and <strong>WEIGHT</strong> as 321FIT’s audio cues and unique <strong>ETA</strong> display empower you to dominate your workout like a true superhuman.</div>
       <div class="section"><strong>LOG</strong><br>Track your ascent to greatness by logging progress before, during, or after each session. Every rep fuels your journey to <strong>limitless power</strong>, pushing you to surpass your previous feats.</div>
@@ -187,6 +216,7 @@
         <a href="https://apps.apple.com/us/app/321fit/id1435831475" class="app-button" target="_blank">Get on App Store</a>
         <a href="https://play.google.com/store/apps/details?id=com.matthewburton.workoutq&hl=en_US" class="app-button" target="_blank">Get on Google Play</a>
       </div>
+      <div class="privacy-policy"><strong>Privacy Policy</strong><br>At 321FIT, we empower your superhuman journey with a completely free app, free of ads and data collection. We collect <strong>no personal information</strong>—your workout logs and settings stay on your device. No data is shared with third parties, period. For questions or feedback, contact us at <a href="mailto:m@ttburton.com" target="_blank">m@ttburton.com</a>. Your trust fuels our mission to unleash your limitless power.</div>
     </div>
     <canvas id="display" width="320" height="180"></canvas>
   </div>
