@@ -8,7 +8,7 @@ const W = canvas.width;
 const H = canvas.height;
 const scoreEl = document.getElementById("timer");
 const messageEl = document.getElementById("message");
-const goalEl     = document.getElementById('goal');
+const goalEl = document.getElementById('goal');
 const controlsEl = document.getElementById('controls');
 
 // Lightning parameters
@@ -31,7 +31,7 @@ let activeBolts = [];
 // Sound effects
 const jumpSound = new Audio('jump.wav');
 jumpSound.preload = 'auto';
-const thunderSounds = [ new Audio('thunder-0.wav') ];
+const thunderSounds = [new Audio('thunder-0.wav')];
 thunderSounds[0].preload = 'auto';
 
 // Game state
@@ -48,6 +48,58 @@ window.addEventListener("keydown", e => {
 window.addEventListener("keyup", e => {
   if (e.code === "ArrowLeft") keys.left = false;
   if (e.code === "ArrowRight") keys.right = false;
+});
+
+// Reusable restart function
+function restartGame() {
+  score = 0;
+  firstRoom = true;
+  running = true;
+  messageEl.style.display = "none";
+  scoreEl.textContent = `0`;
+  buffer.fill(0);
+  activeBolts = [];
+  display.nextWidth = 32;
+  display.resetPlatforms(H - 1, null);
+  player.x = W / 2;
+  player.y = display.platforms[0].y - player.h;
+  player.vy = 0;
+  player.prevY = player.y;
+  requestAnimationFrame(loop);
+}
+
+// Touch controls for movement
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault(); // Prevent scrolling
+  if (!running) {
+    // Restart on touch if game is over
+    restartGame();
+  } else {
+    // Handle movement during gameplay
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = (touch.clientX - rect.left) * (W / rect.width); // Normalize to canvas coordinates
+    if (x < W / 2) {
+      keys.left = true;
+      keys.right = false;
+    } else {
+      keys.right = true;
+      keys.left = false;
+    }
+  }
+});
+canvas.addEventListener("touchend", e => {
+  e.preventDefault();
+  keys.left = false;
+  keys.right = false;
+});
+
+// Click to restart game
+canvas.addEventListener("click", e => {
+  e.preventDefault();
+  if (!running) {
+    restartGame();
+  }
 });
 
 // Frame rate
@@ -73,7 +125,7 @@ function getLogoPixels(text, font, W, H) {
   const y0 = Math.floor(H * 0.4);
   octx.fillText(text, x0, y0);
 
-  const data = octx.getImageData(0, 0, W, H ).data;
+  const data = octx.getImageData(0, 0, W, H).data;
   const pixels = [];
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
@@ -84,7 +136,6 @@ function getLogoPixels(text, font, W, H) {
   }
   return pixels;
 }
-
 
 // ----- Bolt Class -----
 class Bolt {
@@ -164,11 +215,9 @@ class Cloud {
 // ----- Logo Class -----
 class Logo {
   constructor(pixels) {
-    // pixels: array of [x,y] coords spelling "PixelBolt"
     this.pixels = pixels;
   }
   checkAndLight(bx, by) {
-    // if a bolt hits any logo pixel, light all of them
     for (const [lx, ly] of this.pixels) {
       if (lx === bx && ly === by) {
         this.pixels.forEach(([px, py]) => buffer[py * W + px] = 1);
@@ -177,7 +226,6 @@ class Logo {
     }
   }
 }
-
 
 // ----- Platform Class -----
 class Platform {
@@ -206,7 +254,6 @@ class Platform {
 class LightningDisplay {
   constructor(ctx) {
     this.ctx = ctx;
-    // set up scene elements
     this.trees = [];
     const treeCount = 4;
     for (let i = 0; i < treeCount; i++) {
@@ -220,55 +267,40 @@ class LightningDisplay {
       const cy = Math.floor(H / 5);
       this.clouds.push(new Cloud(cx, cy));
     }
-
     this.logos = [];
-
     if (firstRoom) {
-      // 1) get the base pixels
       const base = getLogoPixels('P i x e l B o l t', '12px Press Start 2P', W, H);
-
-      // 2) compute its bounding box
-      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
-      base.forEach(([x,y])=>{
-        if (x<minX) minX=x;
-        if (y<minY) minY=y;
-        if (x>maxX) maxX=x;
-        if (y>maxY) maxY=y;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      base.forEach(([x, y]) => {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
       });
-      const bw = maxX - minX + 1;   // base width
-      const bh = maxY - minY + 1;   // base height
-
-      // 3) figure out how to center the 3× version
+      const bw = maxX - minX + 1;
+      const bh = maxY - minY + 1;
       const offsetX = Math.floor((W - bw * 3) / 2);
       const offsetY = Math.floor((H - bh * 7.2) / 2);
-
-      // 4) build the scaled‑up pixel list
       const scaled = [];
-      base.forEach(([x,y])=>{
-        const sx = (x - minX)*3 + offsetX;
-        const sy = (y - minY)*3 + offsetY;
+      base.forEach(([x, y]) => {
+        const sx = (x - minX) * 3 + offsetX;
+        const sy = (y - minY) * 3 + offsetY;
         for (let dx = 0; dx < 3; dx++) {
           for (let dy = 0; dy < 3; dy++) {
-            scaled.push([ sx + dx, sy + dy ]);
+            scaled.push([sx + dx, sy + dy]);
           }
         }
       });
-
-      // 5) finally add your logo
       this.logos.push(new Logo(scaled));
     }
-
-
     this.platforms = [];
-    this.nextWidth = 32;  // dynamic width starts at 32 after first room
+    this.nextWidth = 32;
     this.resetPlatforms(H - 1, null);
   }
 
   resetPlatforms(baseY = H - 1, playerX = null) {
     this.platforms = [];
     const minWidth = 6;
-
-    // bottom platform
     let bw = firstRoom ? W : this.nextWidth;
     let bh = firstRoom ? 1 : 6;
     let bx = 0;
@@ -280,12 +312,8 @@ class LightningDisplay {
     const bottom = new Platform(bx, baseY, bw, bh);
     if (firstRoom) bottom.scored = true;
     this.platforms.push(bottom);
-
-    // update nextWidth for subsequent rooms
     if (firstRoom) this.nextWidth = 32;
     else this.nextWidth = Math.max(this.nextWidth - 1, minWidth);
-
-    // two platforms above at 60% and 30% heights
     let prev = this.nextWidth;
     [0.6, 0.3].forEach(frac => {
       const y = Math.floor(baseY * frac);
@@ -310,42 +338,36 @@ class LightningDisplay {
   }
 
   updateBolts() {
-  for (let i = activeBolts.length - 1; i >= 0; i--) {
-    const b = activeBolts[i];
-    for (let s = 0; s < BOLT_SPEED; s++) {
-      if (b.y >= H) break;
-      // draw bolt pixel
-      buffer[b.y * W + b.x] = 1 / (b.depth + 1);
-      // light scene
-      if (firstRoom) this.trees.forEach(t => t.checkAndLight(b.x, b.y));
-
-      if (firstRoom) this.logos.forEach(l => l.checkAndLight(b.x, b.y));
-
-      this.clouds.forEach(c => c.checkAndLight(b.x, b.y));
-      this.platforms.forEach(p => {
-        const pyStart = p.y - p.h + 1;
-        if (b.y >= pyStart && b.y <= p.y && b.x >= p.x && b.x < p.x + p.w) {
-          p.lightAt(b.x, b.y);
-          // play thunder sound once per intersection
-          const t = thunderSounds[0];
-          if (t.paused) {
-            t.playbackRate = 0.5 + Math.random() * 1.0;
-            t.currentTime = 0;
-            t.play();
+    for (let i = activeBolts.length - 1; i >= 0; i--) {
+      const b = activeBolts[i];
+      for (let s = 0; s < BOLT_SPEED; s++) {
+        if (b.y >= H) break;
+        buffer[b.y * W + b.x] = 1 / (b.depth + 1);
+        if (firstRoom) this.trees.forEach(t => t.checkAndLight(b.x, b.y));
+        if (firstRoom) this.logos.forEach(l => l.checkAndLight(b.x, b.y));
+        this.clouds.forEach(c => c.checkAndLight(b.x, b.y));
+        this.platforms.forEach(p => {
+          const pyStart = p.y - p.h + 1;
+          if (b.y >= pyStart && b.y <= p.y && b.x >= p.x && b.x < p.x + p.w) {
+            p.lightAt(b.x, b.y);
+            const t = thunderSounds[0];
+            if (t.paused) {
+              t.playbackRate = 0.5 + Math.random() * 1.0;
+              t.currentTime = 0;
+              t.play();
+            }
           }
+        });
+        let bp = BOLT_BRANCH_BASE * Math.exp(-BRANCH_DECAY * b.depth) * (1 - b.y / H);
+        bp = Math.max(bp, BRANCH_MIN_CHANCE);
+        if (Math.random() < bp && activeBolts.length < MAX_ACTIVE_BOLTS) {
+          activeBolts.push(new Bolt({ x: b.x, y: b.y, depth: b.depth + 1, segLen: b.segLen, dx: b.dx }));
         }
-      });
-      // branching logic
-      let bp = BOLT_BRANCH_BASE * Math.exp(-BRANCH_DECAY * b.depth) * (1 - b.y / H);
-      bp = Math.max(bp, BRANCH_MIN_CHANCE);
-      if (Math.random() < bp && activeBolts.length < MAX_ACTIVE_BOLTS) {
-        activeBolts.push(new Bolt({ x: b.x, y: b.y, depth: b.depth + 1, segLen: b.segLen, dx: b.dx }));
+        b.step();
       }
-      b.step();
+      if (b.y >= H) activeBolts.splice(i, 1);
     }
-    if (b.y >= H) activeBolts.splice(i, 1);
   }
-}
 
   render() {
     if (firstRoom) {
@@ -371,8 +393,7 @@ class Character {
     this.prevY = this.y; this.vy += 1; this.y += this.vy;
     let landed = null;
     display.platforms.forEach(p => { if (p.collides(this)) { landed = p; this.y = p.y - this.h; this.vy = -13.6;
-        // play jump sound with random pitch
-        jumpSound.playbackRate = 0.5 + Math.random() * 1.0; // randomize between 0.5x and 1.5x
+        jumpSound.playbackRate = 0.5 + Math.random() * 1.0;
         jumpSound.currentTime = 0;
         jumpSound.play(); } });
     if (landed && !landed.scored) { landed.scored = true; score++; scoreEl.textContent = `${score}`; }
@@ -380,13 +401,9 @@ class Character {
       const topY = Math.min(...display.platforms.map(p => p.y));
       if (landed.y === topY) {
         firstRoom = false;
-
-        // hide the goal & controls
-        goalEl.style.display     = 'none';
+        goalEl.style.display = 'none';
         controlsEl.style.display = 'none';
-
         const shift = H - landed.y - landed.h;
-        // Camera Shift Logic
         display.platforms.forEach(p => p.y += shift);
         this.y += shift;
         buffer.fill(0); activeBolts = [];
@@ -394,7 +411,7 @@ class Character {
       }
     }
     if (!firstRoom && this.y >= H) {
-      messageEl.innerHTML = `Game Over<br>Score: ${score}<br>Press Space to Restart`;
+      messageEl.innerHTML = `Game Over<br>Score: ${score}<br>Press Space or Tap to Restart`;
       messageEl.style.display = "block";
       running = false;
     }
@@ -413,24 +430,9 @@ player.y = display.platforms[0].y - player.h;
 messageEl.style.display = "none";
 scoreEl.textContent = `0`;
 
-// Restart on Space after game over
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' && !running) {
-    // reset game state
-    score = 0;
-    firstRoom = true;
-    running = true;
-    messageEl.style.display = "none";
-    scoreEl.textContent = `0`;
-    buffer.fill(0);
-    activeBolts = [];
-    display.nextWidth = 32;
-    display.resetPlatforms(H - 1, null);
-    player.x = W / 2;
-    player.y = display.platforms[0].y - player.h;
-    player.vy = 0;
-    player.prevY = player.y;
-    requestAnimationFrame(loop);
+    restartGame();
   }
 });
 
