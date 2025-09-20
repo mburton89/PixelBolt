@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Become Superhuman</title>
+  <title>The Superhuman Diet</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 100vw;
-      height: 100vh;
       overflow-x: hidden;
       background: #000;
       color: #fff;
       font-family: Consolas, monospace;
       animation: flicker 2s infinite;
       cursor: crosshair;
+      scroll-behavior: smooth;
     }
     @keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.97; } }
     /* Scanlines */
@@ -25,7 +25,7 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      background-image: repeating-linear-gradient(rgba(0,0,0,0.2) 0, rgba(0,0,0,0.2) 1px, transparent 1px, transparent 3px);
+      background-image: repeating-linear-gradient(rgba(0,0,0,0.1) 0, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 3px);
       pointer-events: none;
       animation: scan 7s linear infinite;
       z-index: 9999;
@@ -49,11 +49,10 @@
     #container {
       position: relative;
       width: 98vw;
-      height: 98vh;
       margin: 1vh auto;
       border-radius: 20px;
       background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, rgba(0,0,0,1) 60%);
-      box-shadow: 0 0 15px rgba(255,255,255,0.3);
+      padding-bottom: 2em;
     }
     canvas {
       position: absolute;
@@ -64,32 +63,37 @@
       image-rendering: pixelated;
       opacity: 0.7;
       z-index: 1;
+      display: none; /* Hide canvas until lightning starts */
+    }
+    .canvas-active {
+      display: block; /* Show canvas when lightning is active */
     }
     header {
-      position: fixed;
+      position: sticky;
       top: 0;
       left: 0;
       width: 100%;
       display: flex;
-      justify-content: space-between;
       align-items: center;
       padding: 1em;
       background: #fff;
-      z-index: 2;
+      z-index: 10000;
       box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.5);
     }
-    .logo a {
-      font-family: Consolas, monospace;
-      font-size: calc(0.8vw + 0.8em);
-      color: #000;
-      text-shadow: 0 0 5px #fff, 0 0 10px #fff;
-      text-decoration: none;
+    .logo img {
+      height: 2em;
+      max-width: 250px;
+      width: auto;
+    }
+    nav {
+      margin-left: 1em;
+      display: flex;
+      gap: 1.5em;
     }
     nav a {
       font-family: Consolas, monospace;
       color: #000;
       text-decoration: none;
-      margin-left: 1.5em;
       font-size: calc(0.6vw + 0.6em);
       text-shadow: 0 0 5px #fff;
       transition: text-shadow 0.3s;
@@ -98,54 +102,52 @@
       text-shadow: 0 0 10px #fff, 0 0 20px #fff;
     }
     #content {
-      position: absolute;
-      top: 10vh;
-      left: 5%;
+      position: relative;
       width: 90%;
+      margin: 0 auto;
       z-index: 2;
       text-align: left;
+      padding-top: 2em;
     }
-    #title {
+    .section-title {
       font-family: Consolas, monospace;
       font-size: calc(1.5vw + 1.5em);
       text-shadow: 0 0 10px #fff, 0 0 20px #fff;
       margin: 1em 0;
       transition: text-shadow 0.3s;
-      display: none;
+      text-align: center;
     }
-    #title.visible {
-      display: block;
-    }
-    #title:hover {
+    .section-title:hover {
       text-shadow: 0 0 15px #fff, 0 0 30px #fff;
     }
-    #body-text {
+    .section {
       font-family: Consolas, monospace;
       font-size: calc(0.6vw + 0.8em);
       line-height: 1.6;
       background: transparent;
-      padding: 1.5em;
+      padding: 0.5em 1.5em;
       border-radius: 8px;
       width: 100%;
       margin: 0 0 1em 0;
       transition: text-shadow 0.3s;
-      visibility: hidden;
       white-space: pre-wrap;
-      min-height: 240px;
     }
-    #body-text.visible {
-      visibility: visible;
-    }
-    #body-text:hover {
+    .section:hover {
       text-shadow: 0 0 5px #fff;
     }
-    #body-text strong {
+    .section strong {
       color: #fff;
       text-shadow: 0 0 5px #fff;
     }
+    .intro-text {
+      min-height: 240px;
+      visibility: hidden;
+    }
+    .intro-text.visible {
+      visibility: visible;
+    }
     .cta-button {
       font-family: Consolas, monospace;
-      display: none;
       background: #fff;
       color: #000;
       text-decoration: none;
@@ -156,6 +158,9 @@
       text-shadow: 0 0 5px #fff;
       transition: box-shadow 0.3s;
       margin: 1em auto;
+      display: none;
+      cursor: pointer;
+      aria-label: "Reveal Superhuman content";
     }
     .cta-button.visible {
       display: inline-block;
@@ -163,29 +168,149 @@
     .cta-button:hover {
       box-shadow: 0 0 10px #fff, 0 0 20px #fff;
     }
+    .app-image {
+      display: block;
+      width: 100%;
+      max-width: 600px;
+      margin: 1em auto;
+      border: 2px solid #fff;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+    .button-container {
+      text-align: center;
+      margin: 1em 0;
+    }
+    .app-button {
+      font-family: Consolas, monospace;
+      background: #fff;
+      color: #000;
+      text-decoration: none;
+      padding: 0.5em 1em;
+      border: 2px solid #fff;
+      border-radius: 4px;
+      font-size: calc(0.6vw + 0.8em);
+      text-shadow: 0 0 5px #fff;
+      transition: box-shadow 0.3s;
+      margin: 0.5em 0.5em;
+      display: inline-block;
+    }
+    .app-button:hover {
+      box-shadow: 0 0 10px #fff, 0 0 20px #fff;
+    }
+    .privacy-policy {
+      font-family: Consolas, monospace;
+      font-size: calc(0.6vw + 0.7em);
+      line-height: 1.6;
+      background: transparent;
+      padding: 0.5em 1.5em;
+      border-radius: 8px;
+      width: 100%;
+      margin: 0 0 1em 0;
+      transition: text-shadow 0.3s;
+      white-space: pre-wrap;
+    }
+    .privacy-policy:hover {
+      text-shadow: 0 0 5px #fff;
+    }
+    .privacy-policy strong {
+      color: #fff;
+      text-shadow: 0 0 5px #fff;
+    }
+    .privacy-policy a {
+      color: #fff;
+      text-decoration: none;
+      text-shadow: 0 0 5px #fff;
+      transition: text-shadow 0.3s;
+    }
+    .privacy-policy a:hover {
+      text-shadow: 0 0 10px #fff;
+    }
+    /* Hide sections below intro until button click */
+    .hidden-section {
+      display: none;
+    }
+    .hidden-section.section-visible {
+      display: block;
+    }
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      nav {
+        margin-left: 0;
+        margin-top: 0.5em;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+      }
+      nav a {
+        margin: 0.5em;
+      }
+      .section-title {
+        font-size: calc(1.2vw + 1.2em);
+      }
+    }
   </style>
 </head>
 <body>
   <div id="container">
     <header>
-      <div class="logo"><a href="index.html" target="_blank">Become Superhuman</a></div>
+      <div class="logo"><a href="#"><img src="images/logo.jpg" alt="Become Superhuman Logo"></a></div>
       <nav>
-        <a href="321fit.html" target="_blank">Become Strong</a>
-        <a href="https://www.university.com/" target="_blank">Become Smart</a>
-        <a href="https://therealworld.net/" target="_blank">Become Rich</a>
-        <a href="game.html" target="_blank">Play PixelBolt</a>
+        <a href="#diet">Diet</a>
+        <a href="#workouts">Workouts</a>
+        <a href="#mindset">Mindset</a>
+        <a href="#wealth">Wealth</a>
+        <a href="game.html" target="_blank">Game</a>
       </nav>
     </header>
     <div id="content">
-      <div id="body-text">Wake up...<br>The LPI has you...<br>Follow the lightning.<br><br>By nature, you are <strong>superhuman</strong>—capable of extraordinary feats of strength, creativity, and resilience. Yet, the <strong>distractions</strong> of the modern world—endless screens, social media, junk food, and division—cloud your vision, as the <strong>devil’s pawns</strong> in the Loser Programming Initiative (LPI) profit from keeping you weak, fat, poor, drunk, distracted, and disconnected from God. Strip away these barriers to awaken your <strong>limitless power</strong>.</div>
-      <div id="title">Become Superhuman</div>
-      <a href="https://www.university.com/" class="cta-button" target="_blank">Join the Fight</a>
+      <!-- Intro Section -->
+      <div id="intro">
+        <div class="section-title">Become Superhuman</div>
+        <div class="section intro-text">Wake up...<br>The LPI has you...<br>Follow the lightning.<br><br>By nature, you are a <strong>superhuman</strong>. You are capable of extraordinary feats of strength, creativity, and resilience. Yet, the <strong>distractions</strong> of the modern world—endless screens, social media, junk food, and division—cloud your vision, as the <strong>devil’s pawns</strong> in the Loser Programming Initiative (LPI) profit from keeping you weak, fat, poor, drunk, distracted, and disconnected from God. Strip away these barriers to awaken your <strong>limitless power</strong>.</div>
+        <button class="cta-button" aria-label="Reveal Superhuman content">Join the Fight!</button>
+      </div>
+
+      <!-- Diet Section -->
+      <div id="diet" class="hidden-section">
+        <div class="section-title">The Superhuman Diet</div>
+        <div class="section"><strong>Cut These Out Completely</strong><br>- <strong>No Booze</strong>: Skip alcohol to drop empty calories.<br>- <strong>No Fried Stuff</strong>: Ditch fries, nuggets, anything deep-fried.<br>- <strong>No Sugary Drinks</strong>: Say bye to soda, energy drinks, sweet coffee/tea, or juices.<br>- <strong>No Junk Snacks</strong>: Avoid chips, cookies, or processed carbs like white bread.<br>- <strong>No Fast Food</strong>: Skip burgers, pizza, or tacos from drive-thrus.<br>- <strong>No Heavy Condiments</strong>: Pass on mayo, ketchup, or sugary sauces.<br>- <strong>No Processed Meats</strong>: Cut out bacon, sausages, or deli slices.<br>- <strong>No Sweet Treats</strong>: Ice cream, cakes, or brownies are out.</div>
+        <div class="section"><strong>Load Up on These</strong><br>- <strong>Lean Proteins</strong>: Grilled chicken, turkey, or tuna for muscle and fullness.<br>- <strong>Green Veggies</strong>: Kale, broccoli, or zucchini to fill up without the calories.<br>- <strong>Greek Yogurt</strong>: Plain, unsweetened for a creamy, protein-packed boost.</div>
+        <div class="section"><strong>Enjoy These in Moderation</strong><br>- <strong>Berries</strong>: Blueberries or strawberries for a low-sugar, antioxidant hit.<br>- <strong>Whole Grains</strong>: Quinoa, oats, or brown rice for steady energy.<br>- <strong>Healthy Fats</strong>: Avocado or small amounts of whole milk/cheese for balance.</div>
+      </div>
+
+      <!-- Workouts Section -->
+      <div id="workouts" class="hidden-section">
+        <div class="section-title">The Superhuman Workout Companion - 321FIT</div>
+        <img src="images/321fit-image.jpeg" alt="321FIT App Preview" class="app-image">
+        <div class="section"><strong>PLAN</strong><br>Unleash your <strong>superhuman potential</strong> by crafting your own workouts or selecting pre-loaded regimens designed to forge strength, agility, and resilience. Define <strong>TIME</strong>, <strong>SETS</strong>, <strong>REPS</strong>, and <strong>WEIGHT</strong> to sculpt a training plan that defies ordinary limits.</div>
+        <div class="section"><strong>PLAY</strong><br>Activate your inner hero with the <strong>PLAY</strong> feature, guiding you through each exercise with precision timing. Focus on crushing <strong>TIME</strong>, <strong>SETS</strong>, <strong>REPS</strong>, and <strong>WEIGHT</strong> as 321FIT’s audio cues and unique <strong>ETA</strong> display empower you to dominate your workout like a true superhuman.</div>
+        <div class="section"><strong>LOG</strong><br>Track your ascent to greatness by logging progress before, during, or after each session. Every rep fuels your journey to <strong>limitless power</strong>, pushing you to surpass your previous feats.</div>
+        <div class="button-container">
+          <a href="https://apps.apple.com/us/app/321fit/id1435831475" class="app-button" target="_blank">Get on App Store</a>
+          <a href="https://play.google.com/store/apps/details?id=com.matthewburton.workoutq&hl=en_US" class="app-button" target="_blank">Get on Google Play</a>
+        </div>
+        <div class="privacy-policy"><strong>Privacy Policy</strong><br>At 321FIT, we empower your superhuman journey with a completely free app, free of ads and data collection. We collect <strong>no personal information</strong>—your workout logs and settings stay on your device. No data is shared with third parties, period. For questions or feedback, contact us at <a href="mailto:m@ttburton.com">m@ttburton.com</a>. Your trust fuels our mission to unleash your limitless power.</div>
+      </div>
+
+      <!-- Mindset Section (Placeholder) -->
+      <div id="mindset" class="hidden-section">
+        <div class="section-title">The Superhuman Mindset</div>
+        <div class="section">Coming soon! Discover strategies to boost <strong>creativity</strong>, build <strong>resilience</strong>, and reconnect with your purpose. Overcome distractions and unlock your mental potential.</div>
+      </div>
+
+      <!-- Wealth Section (Placeholder) -->
+      <div id="wealth" class="hidden-section">
+        <div class="section-title">The Superhuman Wealth Plan</div>
+        <div class="section">Coming soon! Learn proven tactics to achieve financial freedom and grow your wealth, aligned with your <strong>superhuman</strong> journey.</div>
+      </div>
     </div>
     <canvas id="display" width="320" height="180"></canvas>
   </div>
-  <script src="lightning.js"></script>
   <script>
-    // Typewriter effect for body text
+    // Typewriter effect for intro text
     function typeWriter(element, htmlContent, plainText, speed = 20) {
       element.innerHTML = '';
       element.classList.add('visible');
@@ -198,7 +323,6 @@
           setTimeout(type, speed);
         } else {
           element.innerHTML = htmlContent;
-          document.querySelector('#title').classList.add('visible');
           document.querySelector('.cta-button').classList.add('visible');
         }
       }
@@ -206,12 +330,53 @@
       type();
     }
 
-    // Start typewriter effect on load
+    // Dynamically load lightning.js and handle button clicks
     window.addEventListener('load', () => {
-      const bodyText = document.getElementById('body-text');
-      const htmlContent = bodyText.innerHTML;
+      const introText = document.querySelector('.intro-text');
+      const htmlContent = introText.innerHTML;
       const plainText = htmlContent.replace(/<strong>/g, '').replace(/<\/strong>/g, '').replace(/<br>/g, '\n');
-      typeWriter(bodyText, htmlContent, plainText);
+      typeWriter(introText, htmlContent, plainText);
+
+      const ctaButton = document.querySelector('.cta-button');
+      const canvas = document.querySelector('#display');
+      const navLinks = document.querySelectorAll('nav a');
+
+      // Handle Join the Fight button click
+      ctaButton.addEventListener('click', () => {
+        console.log('Join the Fight clicked'); // Debug log
+        document.querySelectorAll('.hidden-section').forEach(section => {
+          section.classList.add('section-visible');
+        });
+        ctaButton.style.display = 'none'; // Hide button
+        canvas.classList.add('canvas-active'); // Show canvas
+        const script = document.createElement('script');
+        script.src = 'lightning.js';
+        document.body.appendChild(script); // Load lightning.js dynamically
+      });
+
+      // Handle nav link clicks to show entire page
+      navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+          if (!canvas.classList.contains('canvas-active')) {
+            e.preventDefault(); // Prevent navigation if sections are hidden
+            document.querySelectorAll('.hidden-section').forEach(section => {
+              section.classList.add('section-visible');
+            });
+            ctaButton.style.display = 'none'; // Hide button
+            canvas.classList.add('canvas-active'); // Show canvas
+            const script = document.createElement('script');
+            script.src = 'lightning.js';
+            document.body.appendChild(script); // Load lightning.js dynamically
+            // Scroll to the target section after revealing
+            setTimeout(() => {
+              document.querySelector(link.getAttribute('href') || '#').scrollIntoView({ behavior: 'smooth' });
+            }, 100); // Small delay to ensure sections are visible
+          } else if (link.getAttribute('href') === 'game.html') {
+            // Allow Game link to open in new tab if canvas is active
+            window.open(link.getAttribute('href'), '_blank');
+          }
+        });
+      });
     });
   </script>
 </body>
