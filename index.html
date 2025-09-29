@@ -51,22 +51,19 @@
       width: 98vw;
       margin: 1vh auto;
       border-radius: 20px;
-      background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, rgba(0,0,0,1) 60%);
+      background: transparent;
       padding-bottom: 2em;
+      z-index: 2;
     }
     canvas {
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       image-rendering: pixelated;
       opacity: 0.7;
       z-index: 1;
-      display: none; /* Hide canvas until lightning starts */
-    }
-    .canvas-active {
-      display: block; /* Show canvas when lightning is active */
     }
     header {
       position: sticky;
@@ -79,11 +76,6 @@
       background: #fff;
       z-index: 10000;
       box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.5);
-    }
-    .logo img {
-      height: 2em;
-      max-width: 250px;
-      width: auto;
     }
     nav {
       margin-left: 1em;
@@ -105,7 +97,7 @@
       position: relative;
       width: 90%;
       margin: 0 auto;
-      z-index: 2;
+      z-index: 3;
       text-align: left;
       padding-top: 2em;
     }
@@ -141,10 +133,7 @@
     }
     .intro-text {
       min-height: 240px;
-      visibility: hidden;
-    }
-    .intro-text.visible {
-      visibility: visible;
+      background: transparent !important;
     }
     .cta-button {
       font-family: Consolas, monospace;
@@ -159,8 +148,9 @@
       transition: box-shadow 0.3s;
       margin: 1em auto;
       display: none;
+      text-align: center;
       cursor: pointer;
-      aria-label: "Reveal Superhuman content";
+      max-width: 200px;
     }
     .cta-button.visible {
       display: inline-block;
@@ -226,7 +216,6 @@
     .privacy-policy a:hover {
       text-shadow: 0 0 10px #fff;
     }
-    /* Hide sections below intro until button click */
     .hidden-section {
       display: none;
     }
@@ -254,9 +243,9 @@
   </style>
 </head>
 <body>
+  <canvas id="display"></canvas>
   <div id="container">
     <header>
-      <div class="logo"><a href="#"><img src="images/logo.jpg" alt="Become Superhuman Logo"></a></div>
       <nav>
         <a href="#diet">Diet</a>
         <a href="#workouts">Workouts</a>
@@ -269,8 +258,8 @@
       <!-- Intro Section -->
       <div id="intro">
         <div class="section-title">Become Superhuman</div>
-        <div class="section intro-text">Wake up...<br>The LPI has you...<br>Follow the lightning.<br><br>By nature, you are a <strong>superhuman</strong>. You are capable of extraordinary feats of strength, creativity, and resilience. Yet, the <strong>distractions</strong> of the modern world—endless screens, social media, junk food, and division—cloud your vision, as the <strong>devil’s pawns</strong> in the Loser Programming Initiative (LPI) profit from keeping you weak, fat, poor, drunk, distracted, and disconnected from God. Strip away these barriers to awaken your <strong>limitless power</strong>.</div>
-        <button class="cta-button" aria-label="Reveal Superhuman content">Join the Fight!</button>
+        <div class="section intro-text">Wake up...<br>The LPI has you...<br>Follow the lightning.<br><br>By nature, you are a <strong>superhuman</strong>. You are capable of extraordinary feats of strength, creativity, and resilience. Yet, the <strong>distractions</strong> of the modern world (endless screens, social media, junk food, and division) cloud your vision, as the <strong>devil’s pawns</strong> in the Loser Programming Initiative (LPI) profit from keeping you weak, fat, poor, drunk, distracted, and disconnected from God. Strip away these barriers to awaken your <strong>limitless power</strong>.</div>
+        <a href="https://discord.gg/e7eXRNbN5u" class="cta-button" target="_blank">Join the Fight!</a>
       </div>
 
       <!-- Diet Section -->
@@ -307,13 +296,11 @@
         <div class="section">Coming soon! Learn proven tactics to achieve financial freedom and grow your wealth, aligned with your <strong>superhuman</strong> journey.</div>
       </div>
     </div>
-    <canvas id="display" width="320" height="180"></canvas>
   </div>
   <script>
     // Typewriter effect for intro text
     function typeWriter(element, htmlContent, plainText, speed = 20) {
       element.innerHTML = '';
-      element.classList.add('visible');
       let i = 0;
       
       function type() {
@@ -330,50 +317,175 @@
       type();
     }
 
-    // Dynamically load lightning.js and handle button clicks
+    // Lightning effect
+    const canvas = document.getElementById("display");
+    const ctx = canvas.getContext("2d");
+
+    // Set canvas size to window dimensions
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Lightning parameters
+    const DECAY = 0.82;
+    const BOLT_CHANCE = 0.02;
+    const BOLT_SPEED = 180; // Doubled from 50 for twice as fast
+    const MAX_ACTIVE_BOLTS = 25;
+    const BOLT_BRANCH_BASE = 0.005; // Reduced from 0.02 to 0.005 for 4x less branching
+    const BRANCH_DECAY = 2.5;
+    const BRANCH_MIN_CHANCE = 0.0015;
+    const SEG_MIN_LEN = 20;
+    const SEG_MAX_LEN = 260;
+    const MAX_KINK = 8;
+    const KINK_CHANCE = 0.1;
+
+    // Bolt list and flash state
+    let activeBolts = [];
+    let flashOpacity = 0;
+    let flashDecay = 0.1;
+
+    // Frame rate
+    let lastTime = 0;
+    const FRAME_INT = 1000 / 30;
+
+    // Utility
+    function rand(n) {
+      return Math.floor(Math.random() * n);
+    }
+
+    // Bolt Class
+    class Bolt {
+      constructor({ x = rand(W), y = 0, depth = 0,
+                    segLen = SEG_MIN_LEN + rand(SEG_MAX_LEN - SEG_MIN_LEN),
+                    dx = [-1, 0, 1][rand(3)] } = {}) {
+        this.x = x;
+        this.y = y;
+        this.depth = depth;
+        this.segLen = segLen;
+        this.dx = dx;
+        this.path = [{ x, y }];
+      }
+      step() {
+        if (Math.random() < KINK_CHANCE) this.x += rand(2 * MAX_KINK + 1) - MAX_KINK;
+        this.x = Math.max(0, Math.min(W - 1, this.x + this.dx));
+        if (--this.segLen <= 0) {
+          this.segLen = SEG_MIN_LEN + rand(SEG_MAX_LEN - SEG_MIN_LEN);
+          this.dx = [-1, 0, 1][rand(3)];
+        }
+        this.y++;
+        this.path.push({ x: this.x, y: this.y });
+      }
+    }
+
+    // Lightning Display Class
+    class LightningDisplay {
+      constructor(ctx) {
+        this.ctx = ctx;
+      }
+
+      fade() {
+        this.ctx.fillStyle = `rgba(0, 0, 0, ${1 - DECAY})`;
+        this.ctx.fillRect(0, 0, W, H);
+        if (flashOpacity > 0) {
+          this.ctx.fillStyle = `rgba(255, 255, 255, ${flashOpacity})`;
+          this.ctx.fillRect(0, 0, W, H);
+          flashOpacity -= flashDecay;
+          if (flashOpacity < 0) flashOpacity = 0;
+        }
+      }
+
+      spawnBolts() {
+        if (activeBolts.length < MAX_ACTIVE_BOLTS && Math.random() < BOLT_CHANCE) {
+          activeBolts.push(new Bolt());
+          flashOpacity = 0.3;
+        }
+      }
+
+      updateBolts() {
+        for (let i = activeBolts.length - 1; i >= 0; i--) {
+          const b = activeBolts[i];
+          for (let s = 0; s < BOLT_SPEED; s++) {
+            if (b.y >= H) {
+              flashOpacity = 0.3;
+              break;
+            }
+            let bp = BOLT_BRANCH_BASE * Math.exp(-BRANCH_DECAY * b.depth) * (1 - b.y / H);
+            bp = Math.max(bp, BRANCH_MIN_CHANCE);
+            if (Math.random() < bp && activeBolts.length < MAX_ACTIVE_BOLTS) {
+              activeBolts.push(new Bolt({ x: b.x, y: b.y, depth: b.depth + 1, segLen: b.segLen, dx: b.dx }));
+            }
+            b.step();
+          }
+          if (b.y >= H) activeBolts.splice(i, 1);
+        }
+      }
+
+      render() {
+        this.ctx.strokeStyle = 'white';
+        this.ctx.lineWidth = 1;
+        this.ctx.shadowColor = 'white';
+        this.ctx.shadowBlur = 5;
+        activeBolts.forEach(bolt => {
+          this.ctx.beginPath();
+          this.ctx.moveTo(bolt.path[0].x, bolt.path[0].y);
+          for (let i = 1; i < bolt.path.length; i++) {
+            this.ctx.lineTo(bolt.path[i].x, bolt.path[i].y);
+          }
+          this.ctx.globalAlpha = Math.min(1, 0.5 / (bolt.depth + 0.5));
+          this.ctx.stroke();
+        });
+        this.ctx.globalAlpha = 1;
+        this.ctx.shadowBlur = 0;
+      }
+    }
+
+    // Init & Loop
+    const display = new LightningDisplay(ctx);
+
+    function loop(time) {
+      if (time - lastTime < FRAME_INT) return requestAnimationFrame(loop);
+      lastTime = time;
+
+      display.fade();
+      display.spawnBolts();
+      display.updateBolts();
+      display.render();
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+
+    // Typewriter effect for intro text
     window.addEventListener('load', () => {
+      // Typewriter effect
       const introText = document.querySelector('.intro-text');
       const htmlContent = introText.innerHTML;
       const plainText = htmlContent.replace(/<strong>/g, '').replace(/<\/strong>/g, '').replace(/<br>/g, '\n');
       typeWriter(introText, htmlContent, plainText);
 
-      const ctaButton = document.querySelector('.cta-button');
-      const canvas = document.querySelector('#display');
+      // Handle nav link clicks to reveal sections and scroll
       const navLinks = document.querySelectorAll('nav a');
-
-      // Handle Join the Fight button click
-      ctaButton.addEventListener('click', () => {
-        console.log('Join the Fight clicked'); // Debug log
-        document.querySelectorAll('.hidden-section').forEach(section => {
-          section.classList.add('section-visible');
-        });
-        ctaButton.style.display = 'none'; // Hide button
-        canvas.classList.add('canvas-active'); // Show canvas
-        const script = document.createElement('script');
-        script.src = 'lightning.js';
-        document.body.appendChild(script); // Load lightning.js dynamically
-      });
-
-      // Handle nav link clicks to show entire page
       navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
-          if (!canvas.classList.contains('canvas-active')) {
-            e.preventDefault(); // Prevent navigation if sections are hidden
+          if (link.getAttribute('href') === 'game.html') {
+            // Allow Game link to open in new tab
+            window.open(link.getAttribute('href'), '_blank');
+          } else {
+            e.preventDefault();
+            // Reveal all sections
             document.querySelectorAll('.hidden-section').forEach(section => {
               section.classList.add('section-visible');
             });
-            ctaButton.style.display = 'none'; // Hide button
-            canvas.classList.add('canvas-active'); // Show canvas
-            const script = document.createElement('script');
-            script.src = 'lightning.js';
-            document.body.appendChild(script); // Load lightning.js dynamically
-            // Scroll to the target section after revealing
+            // Scroll to the target section
             setTimeout(() => {
-              document.querySelector(link.getAttribute('href') || '#').scrollIntoView({ behavior: 'smooth' });
-            }, 100); // Small delay to ensure sections are visible
-          } else if (link.getAttribute('href') === 'game.html') {
-            // Allow Game link to open in new tab if canvas is active
-            window.open(link.getAttribute('href'), '_blank');
+              document.querySelector(link.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
+            }, 100);
           }
         });
       });
