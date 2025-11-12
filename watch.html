@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Unity Clock - FINAL</title>
+  <title>Unity Clock - Final Animation</title>
   <style>
     body {
       margin: 0;
       background: #000;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       height: 100vh;
@@ -21,23 +22,115 @@
       width: 256px; height: 256px;
       box-shadow: 0 0 20px #000;
     }
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 15px;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      background: #222;
+      color: #0f0;
+      border: 2px solid #0f0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button:hover { background: #0f0; color: #000; }
+    button.active { background: #0f0; color: #000; }
   </style>
 </head>
 <body>
   <canvas id="clock" width="128" height="128"></canvas>
+  <div class="controls">
+    <button id="watchBtn" class="active">WATCH MODE</button>
+    <button id="gameBtn">GAME MODE</button>
+  </div>
 
   <script>
     const canvas = document.getElementById('clock');
     const ctx = canvas.getContext('2d');
     const cx = 64, cy = 64;
-    const dotRadius = 58;           // ← +2px (was 56)
-    const dotSize = 2.0;            // ← Bigger dots (was 1.5)
+    const dotRadius = 58;
+    const dotSize = 2.0;
     const thickness = 3;
     const segLen = 12;
     const gap = 4;
 
+    const watchBtn = document.getElementById('watchBtn');
+    const gameBtn = document.getElementById('gameBtn');
+
+    let isGameMode = false;
+    let animStartTime = 0;
+    const animDuration = 500;
+
+    // GAME MODE TARGETS (degrees)
+    const gameTargets = {
+      hourInner: 0,      // 12 o'clock
+      hourOuter: 135,    // 45° before 6
+      minInner: 180,     // 6 o'clock
+      minMiddle: 225,    // 45° past 6
+      minOuter: 315,     // 45° before 12
+      second: 45         // 45° past 12
+    };
+
+    let startAngles = {};
+    let spinningLineAngle = 0;
+    let isSpinning = false;
+
+    // Mouse wheel
+    canvas.addEventListener('wheel', (e) => {
+      if (!isGameMode || !isSpinning) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -15 : 15;
+      spinningLineAngle = (spinningLineAngle + delta + 360) % 360;
+    });
+
+    // Button handlers
+    watchBtn.addEventListener('click', () => switchMode(false));
+    gameBtn.addEventListener('click', () => switchMode(true));
+
+    function switchMode(toGame) {
+      if (isGameMode === toGame) return;
+
+      const now = new Date();
+      if (toGame) {
+        const hour = (now.getHours() % 12) * 30 + now.getMinutes() * 0.5;
+        const min = now.getMinutes() * 6;
+        const sec = now.getSeconds() * 6 + now.getMilliseconds() * 0.006;
+        startAngles = {
+          hourInner: hour,
+          hourOuter: hour,
+          minInner: min,
+          minMiddle: min,
+          minOuter: min,
+          second: sec
+        };
+        spinningLineAngle = 0;
+      } else {
+        startAngles = {
+          hourInner: gameTargets.hourInner,
+          hourOuter: gameTargets.hourOuter,
+          minInner: gameTargets.minInner,
+          minMiddle: gameTargets.minMiddle,
+          minOuter: gameTargets.minOuter,
+          second: gameTargets.second
+        };
+      }
+
+      isGameMode = toGame;
+      animStartTime = performance.now();
+      isSpinning = false;
+
+      watchBtn.classList.toggle('active', !toGame);
+      gameBtn.classList.toggle('active', toGame);
+    }
+
     // Draw segment
-    function drawSegment(angle, offset) {
+    function drawSegment(angleDeg, offset) {
+      const angle = angleDeg * Math.PI / 180;
       const x1 = cx + offset * Math.sin(angle);
       const y1 = cy - offset * Math.cos(angle);
       const x2 = cx + (offset + segLen) * Math.sin(angle);
@@ -51,72 +144,156 @@
       ctx.stroke();
     }
 
-    // Draw hand
-    function drawHand(angle, segments) {
-      let offset = 8;
-      for (let i = 0; i < segments; i++) {
-        drawSegment(angle, offset);
-        offset += segLen + gap;
-      }
-    }
-
-    // 60 dots — bigger & farther out
-    function drawDots() {
+    // Draw dots
+    function drawDots(progress) {
+      const dimmedCount = Math.floor(progress * 59);
       for (let i = 0; i < 60; i++) {
         const angle = i * 6 * Math.PI / 180;
         const x = cx + dotRadius * Math.sin(angle);
         const y = cy - dotRadius * Math.cos(angle);
-        ctx.fillStyle = i % 5 === 0 ? '#ffffff' : '#404040';
+
+        let color;
+        if (isGameMode) {
+          if (i === 0) color = '#ffffff';
+          else {
+            const dimIndex = (i - 1 + 60) % 60;
+            color = dimIndex < dimmedCount ? '#202020' : (i % 5 === 0 ? '#ffffff' : '#404040');
+          }
+        } else {
+          if (i === 0) color = '#ffffff';
+          else if (i % 5 === 0) {
+            const restoreIndex = 58 - dimmedCount;
+            const dimIndex = (i - 1 + 60) % 60;
+            color = dimIndex > restoreIndex ? '#ffffff' : '#404040';
+          } else {
+            color = '#404040';
+          }
+        }
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(x, y, dotSize, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    // Center ring — your exact spec
     function drawCenterRing() {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(cx, cy, 3.3, 0, Math.PI * 2);
       ctx.stroke();
-
       ctx.fillStyle = '#000000';
       ctx.beginPath();
       ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    function drawClock() {
-      const now = new Date();
-      const sec = now.getSeconds() * 6 + now.getMilliseconds() * 0.006;
-      const min = now.getMinutes() * 6;
-      const hour = (now.getHours() % 12) * 30 + now.getMinutes() * 0.5;
+    function easeOut(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
 
+    function clockwiseLerp(from, to, t) {
+      let diff = (to - from) % 360;
+      if (diff > 180) diff -= 360;
+      if (diff < -180) diff += 360;
+      return (from + diff * t + 360) % 360;
+    }
+
+    function drawClock() {
+      const now = performance.now();
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, 128, 128);
 
-      drawDots();
+      const elapsed = now - animStartTime;
+      const progress = Math.min(elapsed / animDuration, 1);
+      const eased = easeOut(progress);
 
-      // === HANDS ===
-      const secOffset = 40;  // Ends at 52px → 58px - 52px = 6px gap
+      drawDots(eased);
 
-      drawHand(min * Math.PI / 180, 3);  // Ends at 52px
-      drawHand(hour * Math.PI / 180, 2); // Ends at 36px
+      if (progress >= 1 && !isGameMode) {
+        // WATCH MODE: real time
+        const date = new Date();
+        const sec = date.getSeconds() * 6 + date.getMilliseconds() * 0.006;
+        const min = date.getMinutes() * 6;
+        const hour = (date.getHours() % 12) * 30 + date.getMinutes() * 0.5;
 
-      // Second hand
-      const secAngle = sec * Math.PI / 180;
-      const sx1 = cx + secOffset * Math.sin(secAngle);
-      const sy1 = cy - secOffset * Math.cos(secAngle);
-      const sx2 = cx + (secOffset + segLen) * Math.sin(secAngle);
-      const sy2 = cy - (secOffset + segLen) * Math.cos(secAngle);
-      ctx.beginPath();
-      ctx.lineWidth = thickness;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = '#ffffff';
-      ctx.moveTo(sx1, sy1);
-      ctx.lineTo(sx2, sy2);
-      ctx.stroke();
+        let offset = 8;
+        drawSegment(min, offset); offset += segLen + gap;
+        drawSegment(min, offset); offset += segLen + gap;
+        drawSegment(min, offset);
+
+        offset = 8;
+        drawSegment(hour, offset); offset += segLen + gap;
+        drawSegment(hour, offset);
+
+        const secOffset = 40;
+        const secAngle = sec;
+        const sx1 = cx + secOffset * Math.sin(secAngle * Math.PI / 180);
+        const sy1 = cy - secOffset * Math.cos(secAngle * Math.PI / 180);
+        const sx2 = cx + (secOffset + segLen) * Math.sin(secAngle * Math.PI / 180);
+        const sy2 = cy - (secOffset + segLen) * Math.cos(secAngle * Math.PI / 180);
+        ctx.beginPath();
+        ctx.lineWidth = thickness;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#ffffff';
+        ctx.moveTo(sx1, sy1);
+        ctx.lineTo(sx2, sy2);
+        ctx.stroke();
+      } else if (progress >= 1 && isGameMode) {
+        // GAME MODE: spinning line
+        isSpinning = true;
+
+        // Fixed outer segments
+        drawSegment(gameTargets.hourOuter, 8 + segLen + gap);
+        drawSegment(gameTargets.minMiddle, 8 + segLen + gap);
+        drawSegment(gameTargets.minOuter, 8 + 2*(segLen + gap));
+        drawSegment(gameTargets.second, 40);
+
+        // Spinning line: two inner segments, 180° apart
+        drawSegment(spinningLineAngle, 8);
+        drawSegment(spinningLineAngle + 180, 8);
+      } else {
+        // ANIMATION: each segment to its target
+        const now = new Date();
+        const targetHourInner = isGameMode ? gameTargets.hourInner : ((now.getHours() % 12) * 30 + now.getMinutes() * 0.5);
+        const targetHourOuter = isGameMode ? gameTargets.hourOuter : targetHourInner;
+        const targetMinInner = isGameMode ? gameTargets.minInner : now.getMinutes() * 6;
+        const targetMinMiddle = isGameMode ? gameTargets.minMiddle : targetMinInner;
+        const targetMinOuter = isGameMode ? gameTargets.minOuter : targetMinInner;
+        const targetSec = isGameMode ? gameTargets.second : (now.getSeconds() * 6 + now.getMilliseconds() * 0.006);
+
+        const hourInner = clockwiseLerp(startAngles.hourInner, targetHourInner, eased);
+        const hourOuter = clockwiseLerp(startAngles.hourOuter, targetHourOuter, eased);
+        const minInner = clockwiseLerp(startAngles.minInner, targetMinInner, eased);
+        const minMiddle = clockwiseLerp(startAngles.minMiddle, targetMinMiddle, eased);
+        const minOuter = clockwiseLerp(startAngles.minOuter, targetMinOuter, eased);
+        const sec = clockwiseLerp(startAngles.second, targetSec, eased);
+
+        // Hour hand
+        let offset = 8;
+        drawSegment(hourInner, offset); offset += segLen + gap;
+        drawSegment(hourOuter, offset);
+
+        // Minute hand
+        offset = 8;
+        drawSegment(minInner, offset); offset += segLen + gap;
+        drawSegment(minMiddle, offset); offset += segLen + gap;
+        drawSegment(minOuter, offset);
+
+        // Second hand
+        const secOffset = 40;
+        const sx1 = cx + secOffset * Math.sin(sec * Math.PI / 180);
+        const sy1 = cy - secOffset * Math.cos(sec * Math.PI / 180);
+        const sx2 = cx + (secOffset + segLen) * Math.sin(sec * Math.PI / 180);
+        const sy2 = cy - (secOffset + segLen) * Math.cos(sec * Math.PI / 180);
+        ctx.beginPath();
+        ctx.lineWidth = thickness;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#ffffff';
+        ctx.moveTo(sx1, sy1);
+        ctx.lineTo(sx2, sy2);
+        ctx.stroke();
+      }
 
       drawCenterRing();
     }
