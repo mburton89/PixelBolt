@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Unity Clock - FINAL PERFECT</title>
+  <title>Unity Clock - FINAL</title>
   <style>
     body {
       margin: 0;
@@ -30,9 +30,10 @@
     const canvas = document.getElementById('clock');
     const ctx = canvas.getContext('2d');
     const cx = 64, cy = 64;
-    const dotRadius = 56;
+    const dotRadius = 58;           // ← +2px (was 56)
+    const dotSize = 2.0;            // ← Bigger dots (was 1.5)
     const thickness = 3;
-    const segLen = 12;      // ← Shortened
+    const segLen = 12;
     const gap = 4;
 
     // Draw segment
@@ -59,7 +60,7 @@
       }
     }
 
-    // 60 dots
+    // 60 dots — bigger & farther out
     function drawDots() {
       for (let i = 0; i < 60; i++) {
         const angle = i * 6 * Math.PI / 180;
@@ -67,12 +68,12 @@
         const y = cy - dotRadius * Math.cos(angle);
         ctx.fillStyle = i % 5 === 0 ? '#ffffff' : '#404040';
         ctx.beginPath();
-        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.arc(x, y, dotSize, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    // Center ring
+    // Center ring — your exact spec
     function drawCenterRing() {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 3;
@@ -98,12 +99,12 @@
       drawDots();
 
       // === HANDS ===
-      const secOffset = 40;  // 40 + 12 = 52px
+      const secOffset = 40;  // Ends at 52px → 58px - 52px = 6px gap
 
       drawHand(min * Math.PI / 180, 3);  // Ends at 52px
       drawHand(hour * Math.PI / 180, 2); // Ends at 36px
 
-      // Second: 12px, ends at 52px
+      // Second hand
       const secAngle = sec * Math.PI / 180;
       const sx1 = cx + secOffset * Math.sin(secAngle);
       const sy1 = cy - secOffset * Math.cos(secAngle);
