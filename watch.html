@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Unity Clock - Final</title>
+  <title>Unity Clock - Final Animation</title>
   <style>
     body {
       margin: 0;
@@ -64,9 +64,9 @@
 
     let isGameMode = false;
     let animStartTime = 0;
-    const animDuration = 500; // 0.5s
+    const animDuration = 500;
 
-    // GAME MODE TARGET ANGLES (degrees)
+    // GAME MODE TARGETS (degrees)
     const gameTargets = {
       hourInner: 0,      // 12 o'clock
       hourOuter: 135,    // 45° before 6
@@ -77,6 +77,16 @@
     };
 
     let startAngles = {};
+    let spinningLineAngle = 0;
+    let isSpinning = false;
+
+    // Mouse wheel
+    canvas.addEventListener('wheel', (e) => {
+      if (!isGameMode || !isSpinning) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -15 : 15;
+      spinningLineAngle = (spinningLineAngle + delta + 360) % 360;
+    });
 
     // Button handlers
     watchBtn.addEventListener('click', () => switchMode(false));
@@ -98,6 +108,7 @@
           minOuter: min,
           second: sec
         };
+        spinningLineAngle = 0;
       } else {
         startAngles = {
           hourInner: gameTargets.hourInner,
@@ -111,6 +122,7 @@
 
       isGameMode = toGame;
       animStartTime = performance.now();
+      isSpinning = false;
 
       watchBtn.classList.toggle('active', !toGame);
       gameBtn.classList.toggle('active', toGame);
@@ -132,29 +144,24 @@
       ctx.stroke();
     }
 
-    // Draw dots with sequential dim
+    // Draw dots
     function drawDots(progress) {
-      const dimmedCount = Math.floor(progress * 59); // 59 dots to dim
+      const dimmedCount = Math.floor(progress * 59);
       for (let i = 0; i < 60; i++) {
         const angle = i * 6 * Math.PI / 180;
         const x = cx + dotRadius * Math.sin(angle);
         const y = cy - dotRadius * Math.cos(angle);
 
         let color;
-
         if (isGameMode) {
-          // GAME MODE: dim all except 12
-          if (i === 0) {
-            color = '#ffffff';
-          } else {
+          if (i === 0) color = '#ffffff';
+          else {
             const dimIndex = (i - 1 + 60) % 60;
             color = dimIndex < dimmedCount ? '#202020' : (i % 5 === 0 ? '#ffffff' : '#404040');
           }
         } else {
-          // WATCH MODE: restore
-          if (i === 0) {
-            color = '#ffffff';
-          } else if (i % 5 === 0) {
+          if (i === 0) color = '#ffffff';
+          else if (i % 5 === 0) {
             const restoreIndex = 58 - dimmedCount;
             const dimIndex = (i - 1 + 60) % 60;
             color = dimIndex > restoreIndex ? '#ffffff' : '#404040';
@@ -162,7 +169,6 @@
             color = '#404040';
           }
         }
-
         ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(x, y, dotSize, 0, Math.PI * 2);
@@ -186,7 +192,6 @@
       return 1 - Math.pow(1 - t, 3);
     }
 
-    // FIXED: Clockwise interpolation
     function clockwiseLerp(from, to, t) {
       let diff = (to - from) % 360;
       if (diff > 180) diff -= 360;
@@ -206,7 +211,7 @@
       drawDots(eased);
 
       if (progress >= 1 && !isGameMode) {
-        // WATCH MODE
+        // WATCH MODE: real time
         const date = new Date();
         const sec = date.getSeconds() * 6 + date.getMilliseconds() * 0.006;
         const min = date.getMinutes() * 6;
@@ -235,31 +240,20 @@
         ctx.lineTo(sx2, sy2);
         ctx.stroke();
       } else if (progress >= 1 && isGameMode) {
-        // GAME MODE
-        let offset = 8;
-        drawSegment(gameTargets.hourInner, offset); offset += segLen + gap;
-        drawSegment(gameTargets.hourOuter, offset);
+        // GAME MODE: spinning line
+        isSpinning = true;
 
-        offset = 8;
-        drawSegment(gameTargets.minInner, offset); offset += segLen + gap;
-        drawSegment(gameTargets.minMiddle, offset); offset += segLen + gap;
-        drawSegment(gameTargets.minOuter, offset);
+        // Fixed outer segments
+        drawSegment(gameTargets.hourOuter, 8 + segLen + gap);
+        drawSegment(gameTargets.minMiddle, 8 + segLen + gap);
+        drawSegment(gameTargets.minOuter, 8 + 2*(segLen + gap));
+        drawSegment(gameTargets.second, 40);
 
-        const secOffset = 40;
-        const secAngle = gameTargets.second;
-        const sx1 = cx + secOffset * Math.sin(secAngle * Math.PI / 180);
-        const sy1 = cy - secOffset * Math.cos(secAngle * Math.PI / 180);
-        const sx2 = cx + (secOffset + segLen) * Math.sin(secAngle * Math.PI / 180);
-        const sy2 = cy - (secOffset + segLen) * Math.cos(secAngle * Math.PI / 180);
-        ctx.beginPath();
-        ctx.lineWidth = thickness;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#ffffff';
-        ctx.moveTo(sx1, sy1);
-        ctx.lineTo(sx2, sy2);
-        ctx.stroke();
+        // Spinning line: two inner segments, 180° apart
+        drawSegment(spinningLineAngle, 8);
+        drawSegment(spinningLineAngle + 180, 8);
       } else {
-        // ANIMATION
+        // ANIMATION: each segment to its target
         const now = new Date();
         const targetHourInner = isGameMode ? gameTargets.hourInner : ((now.getHours() % 12) * 30 + now.getMinutes() * 0.5);
         const targetHourOuter = isGameMode ? gameTargets.hourOuter : targetHourInner;
@@ -275,15 +269,18 @@
         const minOuter = clockwiseLerp(startAngles.minOuter, targetMinOuter, eased);
         const sec = clockwiseLerp(startAngles.second, targetSec, eased);
 
+        // Hour hand
         let offset = 8;
         drawSegment(hourInner, offset); offset += segLen + gap;
         drawSegment(hourOuter, offset);
 
+        // Minute hand
         offset = 8;
         drawSegment(minInner, offset); offset += segLen + gap;
         drawSegment(minMiddle, offset); offset += segLen + gap;
         drawSegment(minOuter, offset);
 
+        // Second hand
         const secOffset = 40;
         const sx1 = cx + secOffset * Math.sin(sec * Math.PI / 180);
         const sy1 = cy - secOffset * Math.cos(sec * Math.PI / 180);
