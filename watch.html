@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Unity Clock - FINAL PERFECT</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    canvas {
+      image-rendering: pixelated;
+      border: 6px solid #222;
+      border-radius: 50%;
+      width: 256px; height: 256px;
+      box-shadow: 0 0 20px #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="clock" width="128" height="128"></canvas>
+
+  <script>
+    const canvas = document.getElementById('clock');
+    const ctx = canvas.getContext('2d');
+    const cx = 64, cy = 64;
+    const dotRadius = 56;
+    const thickness = 3;
+    const segLen = 12;      // ← Shortened
+    const gap = 4;
+
+    // Draw segment
+    function drawSegment(angle, offset) {
+      const x1 = cx + offset * Math.sin(angle);
+      const y1 = cy - offset * Math.cos(angle);
+      const x2 = cx + (offset + segLen) * Math.sin(angle);
+      const y2 = cy - (offset + segLen) * Math.cos(angle);
+      ctx.beginPath();
+      ctx.lineWidth = thickness;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#ffffff';
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // Draw hand
+    function drawHand(angle, segments) {
+      let offset = 8;
+      for (let i = 0; i < segments; i++) {
+        drawSegment(angle, offset);
+        offset += segLen + gap;
+      }
+    }
+
+    // 60 dots
+    function drawDots() {
+      for (let i = 0; i < 60; i++) {
+        const angle = i * 6 * Math.PI / 180;
+        const x = cx + dotRadius * Math.sin(angle);
+        const y = cy - dotRadius * Math.cos(angle);
+        ctx.fillStyle = i % 5 === 0 ? '#ffffff' : '#404040';
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Center ring
+    function drawCenterRing() {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.3, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawClock() {
+      const now = new Date();
+      const sec = now.getSeconds() * 6 + now.getMilliseconds() * 0.006;
+      const min = now.getMinutes() * 6;
+      const hour = (now.getHours() % 12) * 30 + now.getMinutes() * 0.5;
+
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 128, 128);
+
+      drawDots();
+
+      // === HANDS ===
+      const secOffset = 40;  // 40 + 12 = 52px
+
+      drawHand(min * Math.PI / 180, 3);  // Ends at 52px
+      drawHand(hour * Math.PI / 180, 2); // Ends at 36px
+
+      // Second: 12px, ends at 52px
+      const secAngle = sec * Math.PI / 180;
+      const sx1 = cx + secOffset * Math.sin(secAngle);
+      const sy1 = cy - secOffset * Math.cos(secAngle);
+      const sx2 = cx + (secOffset + segLen) * Math.sin(secAngle);
+      const sy2 = cy - (secOffset + segLen) * Math.cos(secAngle);
+      ctx.beginPath();
+      ctx.lineWidth = thickness;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#ffffff';
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.stroke();
+
+      drawCenterRing();
+    }
+
+    function tick() {
+      drawClock();
+      requestAnimationFrame(tick);
+    }
+    tick();
+  </script>
+</body>
+</html>
